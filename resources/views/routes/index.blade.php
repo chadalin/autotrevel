@@ -114,12 +114,12 @@
                     <div class="flex items-center space-x-4">
                         <span class="text-gray-700">Сортировка:</span>
                         <select id="sort-select" class="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-orange-500 focus:border-orange-500">
-                            <option value="new" {{ $sort == 'new' ? 'selected' : '' }}>Сначала новые</option>
-                            <option value="popular" {{ $sort == 'popular' ? 'selected' : '' }}>По популярности</option>
-                            <option value="rating" {{ $sort == 'rating' ? 'selected' : '' }}>По рейтингу</option>
-                            <option value="length_asc" {{ $sort == 'length_asc' ? 'selected' : '' }}>Короткие</option>
-                            <option value="length_desc" {{ $sort == 'length_desc' ? 'selected' : '' }}>Длинные</option>
-                        </select>
+    <option value="new" {{ old('sort', $sort ?? 'new') == 'new' ? 'selected' : '' }}>Сначала новые</option>
+    <option value="popular" {{ old('sort', $sort ?? 'new') == 'popular' ? 'selected' : '' }}>По популярности</option>
+    <option value="rating" {{ old('sort', $sort ?? 'new') == 'rating' ? 'selected' : '' }}>По рейтингу</option>
+    <option value="length_asc" {{ old('sort', $sort ?? 'new') == 'length_asc' ? 'selected' : '' }}>Короткие</option>
+    <option value="length_desc" {{ old('sort', $sort ?? 'new') == 'length_desc' ? 'selected' : '' }}>Длинные</option>
+</select>
                     </div>
                 </div>
             </div>
