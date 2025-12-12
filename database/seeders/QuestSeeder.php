@@ -2,86 +2,102 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
 use App\Models\Quest;
-use App\Models\Route;
+use App\Models\QuestBadge;
+use Illuminate\Database\Seeder;
 
 class QuestSeeder extends Seeder
 {
     public function run(): void
     {
-        $routes = Route::all();
+        // Получаем существующие значки или создаем дефолтный
+        $badges = QuestBadge::all();
+        
+        if ($badges->isEmpty()) {
+            // Если таблица пуста, создаем дефолтный значок
+            $badge = QuestBadge::create([
+                'name' => 'Базовый значок',
+                'slug' => 'basic-badge',
+                'icon' => 'fas fa-medal',
+                'color' => '#FF7A45',
+                'description' => 'Базовый значок для квестов',
+                'rarity' => 1,
+            ]);
+            $badgeId = $badge->id;
+        } else {
+            // Берем случайный существующий значок или NULL
+            $badgeId = $badges->random()->id;
+        }
 
         $quests = [
             [
-                'title' => 'Собиратель красот',
-                'description' => 'Посетите 3 самых живописных маршрута платформы. Докажите, что вы ценитель прекрасного!',
+                'title' => 'Первое путешествие',
+                'slug' => 'first-journey',
+                'description' => 'Начните свое первое путешествие на AutoRuta',
+                'short_description' => 'Пройдите свой первый маршрут',
                 'type' => 'collection',
-                'difficulty' => 'medium',
-                'reward_exp' => 300,
-                'reward_coins' => 100,
-                'badge_id' => 2, // исследователь
-                'routes' => $routes->pluck('id')->take(3)->toArray(),
+                'difficulty' => 'easy',
+                'reward_exp' => 100,
+                'reward_coins' => 50,
+                'badge_id' => $badgeId, // Используем реальный или NULL
+                'requirements' => json_encode([
+                    ['type' => 'min_level', 'value' => 1]
+                ]),
+                'is_active' => true,
+                'is_featured' => true,
+                'is_repeatable' => false,
+                'max_completions' => 1,
+                'color' => '#10B981',
             ],
             [
-                'title' => 'Испытание бездорожьем',
-                'description' => 'Пройдите сложный горный маршрут. Только для опытных водителей!',
+                'title' => 'Исследователь недели',
+                'slug' => 'weekly-explorer',
+                'description' => 'Пройдите 3 различных маршрута за неделю',
+                'short_description' => 'Исследуйте новые места каждую неделю',
+                'type' => 'challenge',
+                'difficulty' => 'medium',
+                'reward_exp' => 300,
+                'reward_coins' => 150,
+                'badge_id' => $badges->isNotEmpty() ? $badges->random()->id : null,
+                'requirements' => json_encode([
+                    ['type' => 'min_level', 'value' => 3],
+                    ['type' => 'completed_quests', 'value' => 1]
+                ]),
+                'is_active' => true,
+                'is_featured' => false,
+                'is_repeatable' => true,
+                'max_completions' => null,
+                'color' => '#3B82F6',
+            ],
+            [
+                'title' => 'Мастер горных дорог',
+                'slug' => 'mountain-master',
+                'description' => 'Покорите 5 горных маршрутов',
+                'short_description' => 'Пройдите сложные горные трассы',
                 'type' => 'challenge',
                 'difficulty' => 'hard',
                 'reward_exp' => 500,
-                'reward_coins' => 200,
-                'badge_id' => 3, // мастер дорог
-                'routes' => [$routes->where('difficulty', 'hard')->first()->id],
-            ],
-            [
-                'title' => 'Выходные на природе',
-                'description' => 'Специальный квест на эти выходные! Отправляйтесь в путешествие по лесам и озёрам.',
-                'type' => 'weekend',
-                'difficulty' => 'easy',
-                'reward_exp' => 150,
-                'reward_coins' => 50,
-                'badge_id' => null,
-                'routes' => $routes->whereIn('difficulty', ['easy', 'medium'])->pluck('id')->take(2)->toArray(),
-                'start_date' => now()->startOfDay(),
-                'end_date' => now()->addDays(2)->endOfDay(),
+                'reward_coins' => 250,
+                'badge_id' => $badges->isNotEmpty() ? $badges->random()->id : null,
+                'requirements' => json_encode([
+                    ['type' => 'min_level', 'value' => 5],
+                    ['type' => 'completed_quests', 'value' => 5]
+                ]),
+                'is_active' => true,
+                'is_featured' => true,
+                'is_repeatable' => false,
+                'max_completions' => 1,
+                'color' => '#EF4444',
             ],
         ];
 
-        foreach ($quests as $questData) {
-            $quest = Quest::create([
-                'title' => $questData['title'],
-                'slug' => \Illuminate\Support\Str::slug($questData['title']),
-                'description' => $questData['description'],
-                'short_description' => \Illuminate\Support\Str::limit($questData['description'], 150),
-                'type' => $questData['type'],
-                'difficulty' => $questData['difficulty'],
-                'reward_exp' => $questData['reward_exp'],
-                'reward_coins' => $questData['reward_coins'],
-                'badge_id' => $questData['badge_id'] ?? null,
-                'is_active' => true,
-                'is_featured' => $questData['difficulty'] !== 'hard',
-                'start_date' => $questData['start_date'] ?? null,
-                'end_date' => $questData['end_date'] ?? null,
-                'color' => $this->getColorByDifficulty($questData['difficulty']),
-            ]);
-
-            // Привязываем маршруты
-            foreach ($questData['routes'] as $order => $routeId) {
-                $quest->routes()->attach($routeId, [
-                    'order' => $order + 1,
-                    'is_required' => true,
-                ]);
+        foreach ($quests as $quest) {
+            // Убедимся, что badge_id существует или установим NULL
+            if ($quest['badge_id'] && !QuestBadge::where('id', $quest['badge_id'])->exists()) {
+                $quest['badge_id'] = null;
             }
+            
+            Quest::create($quest);
         }
-    }
-
-    private function getColorByDifficulty($difficulty)
-    {
-        return [
-            'easy' => '#10B981',
-            'medium' => '#F59E0B',
-            'hard' => '#EF4444',
-            'expert' => '#8B5CF6',
-        ][$difficulty] ?? '#6B7280';
     }
 }

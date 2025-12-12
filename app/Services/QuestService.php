@@ -398,16 +398,20 @@ class QuestService
     }
 
     private function getPopularRoutesInQuest(Quest $quest)
-    {
-        return $quest->routes()
-            ->withCount(['userQuests' => function ($query) use ($quest) {
-                $query->whereHas('userQuest', function ($q) use ($quest) {
-                    $q->where('quest_id', $quest->id)
-                      ->where('status', 'completed');
-                });
-            }])
-            ->orderBy('user_quests_count', 'desc')
-            ->limit(5)
-            ->get();
+{
+    // Получаем маршруты, связанные с квестом
+    $routeIds = $quest->routes()->pluck('id');
+    
+    if ($routeIds->isEmpty()) {
+        return collect();
     }
+    
+    // Находим популярные маршруты (по просмотрам или завершениям)
+    return Route::whereIn('id', $routeIds)
+        ->with(['user', 'tags'])
+        ->orderByDesc('views_count')
+        ->orderByDesc('favorites_count')
+        ->limit(5)
+        ->get();
+}
 }

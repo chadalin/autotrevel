@@ -8,7 +8,9 @@
     
     <!-- Tailwind CSS -->
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
           integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
@@ -50,6 +52,27 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #e56a35;
         }
+        
+        /* Анимация для уведомлений */
+        @keyframes slide-up {
+            from {
+                transform: translateY(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        
+        .animate-slide-up {
+            animation: slide-up 0.3s ease-out;
+        }
+        
+        /* Для выпадающего меню профиля */
+        .group:hover .group-hover\:block {
+            display: block !important;
+        }
     </style>
     
     @stack('styles')
@@ -68,40 +91,7 @@
                         <span class="text-white font-bold text-xl tracking-tight">AutoRuta</span>
                     </a>
                 </div>
-                            <!-- Уведомления -->
-@if(session('success'))
-    <div class="fixed bottom-4 right-4 z-50 animate-slide-up">
-        <div class="bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center">
-            <i class="fas fa-check-circle mr-3"></i>
-            <span>{{ session('success') }}</span>
-        </div>
-    </div>
-@endif
 
-@if(session('error'))
-    <div class="fixed bottom-4 right-4 z-50 animate-slide-up">
-        <div class="bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center">
-            <i class="fas fa-exclamation-circle mr-3"></i>
-            <span>{{ session('error') }}</span>
-        </div>
-    </div>
-@endif
-
-@if($errors->any())
-    <div class="fixed bottom-4 right-4 z-50 animate-slide-up">
-        <div class="bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg">
-            <div class="flex items-center mb-2">
-                <i class="fas fa-exclamation-circle mr-3"></i>
-                <span>Ошибка валидации</span>
-            </div>
-            <ul class="text-sm">
-                @foreach($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
-        </div>
-    </div>
-@endif
                 <!-- Центральное меню -->
                 <div class="hidden md:flex items-center space-x-8">
                     <a href="{{ route('home') }}" class="text-gray-300 hover:text-white transition duration-300 font-medium {{ request()->routeIs('home') ? 'text-orange-400' : '' }}">
@@ -110,15 +100,21 @@
                     <a href="{{ route('search') }}" class="text-gray-300 hover:text-white transition duration-300 font-medium {{ request()->routeIs('search') ? 'text-orange-400' : '' }}">
                         <i class="fas fa-search mr-2"></i>Поиск маршрутов
                     </a>
-                    <a href="#" class="text-gray-300 hover:text-white transition duration-300 font-medium">
+                    <a href="{{ route('quests.index') }}" class="text-gray-300 hover:text-white transition duration-300 font-medium {{ request()->is('quests*') ? 'text-orange-400' : '' }}">
                         <i class="fas fa-flag mr-2"></i>Квесты
                     </a>
-                    <a href="#" class="text-gray-300 hover:text-white transition duration-300 font-medium">
-                        <i class="fas fa-users mr-2"></i>Сообщество
+                    <a href="{{ route('routes.index') }}" class="text-gray-300 hover:text-white transition duration-300 font-medium {{ request()->is('routes*') ? 'text-orange-400' : '' }}">
+                        <i class="fas fa-route mr-2"></i>Все маршруты
                     </a>
-                    <a href="#" class="text-gray-300 hover:text-white transition duration-300 font-medium">
-                        <i class="fas fa-plus-circle mr-2"></i>Создать маршрут
-                    </a>
+                    @auth
+                        <a href="{{ route('routes.create') }}" class="text-gray-300 hover:text-white transition duration-300 font-medium {{ request()->routeIs('routes.create') ? 'text-orange-400' : '' }}">
+                            <i class="fas fa-plus-circle mr-2"></i>Создать маршрут
+                        </a>
+                    @else
+                        <a href="{{ route('login') }}" class="text-gray-300 hover:text-white transition duration-300 font-medium">
+                            <i class="fas fa-plus-circle mr-2"></i>Создать маршрут
+                        </a>
+                    @endauth
                 </div>
 
                 <!-- Правая часть -->
@@ -127,7 +123,7 @@
                         <!-- Уведомления -->
                         <button class="relative text-gray-300 hover:text-white transition duration-300">
                             <i class="fas fa-bell text-xl"></i>
-                            <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">3</span>
+                            <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">0</span>
                         </button>
 
                         <!-- Профиль -->
@@ -145,12 +141,21 @@
                                 <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">
                                     <i class="fas fa-user mr-2"></i>Мой профиль
                                 </a>
-                                <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">
-                                    <i class="fas fa-route mr-2"></i>Мои маршруты
+                                <a href="{{ route('quests.my') }}" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">
+                                    <i class="fas fa-tasks mr-2"></i>Мои квесты
                                 </a>
-                                <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">
+                                <a href="{{ route('quests.achievements') }}" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">
                                     <i class="fas fa-trophy mr-2"></i>Достижения
                                 </a>
+                                <a href="{{ route('quests.badges') }}" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">
+                                    <i class="fas fa-medal mr-2"></i>Значки
+                                </a>
+                                @can('admin', App\Models\Quest::class)
+                                <div class="border-t my-1"></div>
+                                <a href="{{ route('quests.admin.index') }}" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">
+                                    <i class="fas fa-cog mr-2"></i>Админ-панель
+                                </a>
+                                @endcan
                                 <div class="border-t my-1"></div>
                                 <form method="POST" action="{{ route('logout') }}">
                                     @csrf
@@ -171,8 +176,43 @@
         </div>
     </nav>
 
+    <!-- Уведомления -->
+    @if(session('success'))
+        <div class="fixed bottom-4 right-4 z-50 animate-slide-up">
+            <div class="bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center">
+                <i class="fas fa-check-circle mr-3"></i>
+                <span>{{ session('success') }}</span>
+            </div>
+        </div>
+    @endif
+
+    @if(session('error'))
+        <div class="fixed bottom-4 right-4 z-50 animate-slide-up">
+            <div class="bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center">
+                <i class="fas fa-exclamation-circle mr-3"></i>
+                <span>{{ session('error') }}</span>
+            </div>
+        </div>
+    @endif
+
+    @if($errors->any())
+        <div class="fixed bottom-4 right-4 z-50 animate-slide-up">
+            <div class="bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg">
+                <div class="flex items-center mb-2">
+                    <i class="fas fa-exclamation-circle mr-3"></i>
+                    <span>Ошибка валидации</span>
+                </div>
+                <ul class="text-sm">
+                    @foreach($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        </div>
+    @endif
+
     <!-- Основной контент -->
-    <main>
+    <main class="min-h-screen">
         @yield('content')
     </main>
 
@@ -210,9 +250,15 @@
                     <ul class="space-y-2">
                         <li><a href="{{ route('home') }}" class="text-gray-400 hover:text-white">Главная</a></li>
                         <li><a href="{{ route('search') }}" class="text-gray-400 hover:text-white">Поиск маршрутов</a></li>
-                        <li><a href="#" class="text-gray-400 hover:text-white">Квесты</a></li>
-                        <li><a href="#" class="text-gray-400 hover:text-white">Сообщество</a></li>
-                        <li><a href="#" class="text-gray-400 hover:text-white">Создать маршрут</a></li>
+                        <li><a href="{{ route('routes.index') }}" class="text-gray-400 hover:text-white">Все маршруты</a></li>
+                        <li><a href="{{ route('quests.index') }}" class="text-gray-400 hover:text-white">Квесты</a></li>
+                        <li><a href="{{ route('quests.leaderboard') }}" class="text-gray-400 hover:text-white">Таблица лидеров</a></li>
+                        @auth
+                            <li><a href="{{ route('quests.my') }}" class="text-gray-400 hover:text-white">Мои квесты</a></li>
+                            <li><a href="{{ route('routes.create') }}" class="text-gray-400 hover:text-white">Создать маршрут</a></li>
+                        @else
+                            <li><a href="{{ route('login') }}" class="text-gray-400 hover:text-white">Войти / Регистрация</a></li>
+                        @endauth
                     </ul>
                 </div>
 
@@ -271,6 +317,29 @@
         $.ajaxSetup({
             headers: {
                 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+            }
+        });
+
+        // Автоскрытие уведомлений
+        $(document).ready(function() {
+            setTimeout(function() {
+                $('.fixed.bottom-4.right-4').fadeOut('slow');
+            }, 5000);
+            
+            // Закрытие уведомлений по клику
+            $(document).on('click', '.fixed.bottom-4.right-4', function() {
+                $(this).fadeOut('slow');
+            });
+        });
+
+        // Открытие/закрытие меню профиля
+        document.addEventListener('click', function(event) {
+            const profileMenu = document.querySelector('.group');
+            if (!profileMenu.contains(event.target)) {
+                const dropdown = profileMenu.querySelector('.hidden');
+                if (dropdown && !dropdown.classList.contains('hidden')) {
+                    dropdown.classList.add('hidden');
+                }
             }
         });
     </script>

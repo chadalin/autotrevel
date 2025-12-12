@@ -17,7 +17,7 @@ class RouteController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('auth')->except(['index', 'show', 'search']);
+       // $this->middleware('auth')->except(['index', 'show', 'search']);
     }
 
     // Страница всех маршрутов
@@ -75,50 +75,65 @@ class RouteController extends Controller
 
     // Детальная страница маршрута
     public function show($id)
-    {
-        $route = Route::with([
-            'user',
-            'tags',
-            'points' => function ($query) {
-                $query->orderBy('order');
-            },
-            'reviews.user'
-        ])->findOrFail($id);
-
-        // Проверка публикации
-        if (!$route->is_published && $route->user_id !== auth()->id()) {
-            abort(404);
-        }
-
-        // Увеличиваем счетчик просмотров
-        $route->incrementViews();
-
-        // Проверяем, сохранен ли маршрут у текущего пользователя
-        $isSaved = auth()->check() 
-            ? SavedRoute::where('user_id', auth()->id())
-                ->where('route_id', $route->id)
-                ->exists()
-            : false;
-
-        // Получаем средние рейтинги
-        $averageRatings = [
-            'scenery' => $route->reviews->avg('scenery_rating') ?? 0,
-            'road_quality' => $route->reviews->avg('road_quality_rating') ?? 0,
-            'safety' => $route->reviews->avg('safety_rating') ?? 0,
-            'infrastructure' => $route->reviews->avg('infrastructure_rating') ?? 0,
-        ];
-
-        // Похожие маршруты
-        $similarRoutes = Route::published()
-            ->where('id', '!=', $route->id)
-            ->whereHas('tags', function ($query) use ($route) {
-                $query->whereIn('tags.id', $route->tags->pluck('id'));
-            })
-            ->limit(4)
-            ->get();
-
-        return view('routes.show', compact('route', 'isSaved', 'averageRatings', 'similarRoutes'));
+{
+    $route = Route::with([
+        'user', 
+        'tags',
+        'reviews.user'
+    ])->findOrFail($id);
+    
+    // Загружаем точки интереса если таблица существует
+    if (\Illuminate\Support\Facades\Schema::hasTable('points_of_interest')) {
+        $route->load(['pointsOfInterest' => function($query) {
+            $query->orderBy('order');
+        }]);
     }
+    
+    // Проверяем, сохранен ли маршрут текущим пользователем
+    $isSaved = false;
+    if (auth()->check()) {
+        $isSaved = auth()->user()->savedRoutes()->where('route_id', $id)->exists();
+    }
+    
+    // Рассчитываем средние рейтинги
+    $averageRatings = [
+        'scenery' => $route->reviews->avg('scenery_rating') ?? 0,
+        'road_quality' => $route->reviews->avg('road_quality_rating') ?? 0,
+        'safety' => $route->reviews->avg('safety_rating') ?? 0,
+        'infrastructure' => $route->reviews->avg('infrastructure_rating') ?? 0,
+    ];
+    
+    // Находим похожие маршруты
+    $similarRoutes = Route::where('id', '!=', $id)
+        ->where(function($query) use ($route) {
+            // По тегам
+            if ($route->tags->isNotEmpty()) {
+                $tagIds = $route->tags->pluck('id')->toArray();
+                $query->whereHas('tags', function($q) use ($tagIds) {
+                    $q->whereIn('tags.id', $tagIds);
+                });
+            }
+            
+            // Или по сложности
+            $query->orWhere('difficulty', $route->difficulty);
+            
+            // Или по типу дороги
+            $query->orWhere('road_type', $route->road_type);
+        })
+        ->where('is_published', true)
+        ->with(['user', 'tags'])
+        ->limit(3)
+        ->get();
+    
+    $route->increment('views_count');
+    
+    return view('routes.show', compact(
+        'route', 
+        'isSaved', 
+        'averageRatings', 
+        'similarRoutes'
+    ));
+}
 
     // Форма создания маршрута
     public function create()

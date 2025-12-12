@@ -99,21 +99,32 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <div class="logo">
-                <div class="logo-icon">
-                    <!-- Route icon -->
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="white"/>
-                    </svg>
-                </div>
-                <span class="logo-text">AutoRuta</span>
-            </div>
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(to right, #f97316, #dc2626); padding: 20px; text-align: center;">
+            <h1 style="color: white; margin: 0;">AutoRuta</h1>
         </div>
         
-        <div class="content">
-            <h1 style="color: #0F2A44; margin-top: 0;">Код подтверждения</h1>
+        <div style="padding: 30px; background-color: #f9fafb;">
+            <h2 style="color: #1f2937;">Ваш код верификации</h2>
+            <p style="color: #4b5563; font-size: 16px;">
+                Для завершения входа в аккаунт AutoRuta используйте следующий код:
+            </p>
             
-            <p>Здравствуйте!</p>
+            <div style="background-color: white; border-radius: 8px; padding: 20px; text-align: center; margin: 30px 0; border: 2px dashed #e5e7eb;">
+                <div style="font-size: 32px; font-weight: bold; letter-spacing: 10px; color: #1f2937;">
+                    {{ $code }}
+                </div>
+            </div>
+            
+            <p style="color: #4b5563; font-size: 14px;">
+                Этот код действителен в течение 15 минут. Если вы не запрашивали вход, просто проигнорируйте это письмо.
+            </p>
+            
+            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 12px;">
+                <p>С уважением,<br>Команда AutoRuta</p>
+                <p>Это письмо отправлено автоматически, пожалуйста, не отвечайте на него.</p>
+            </div>
+        </div>
+    </div>
+</body>
             

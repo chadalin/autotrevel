@@ -174,4 +174,21 @@ class Route extends Model
     {
         $this->increment('views_count');
     }
+
+
+    public function pointsOfInterest()
+{
+    // Если таблица называется points_of_interest
+    return $this->hasMany(PointOfInterest::class, 'route_id');
+    
+    // Или если совсем другое имя
+    // return $this->hasMany(\App\Models\PointOfInterest::class, 'route_id');
+}
+
+public function userQuests()
+{
+    // Если есть таблица quest_route (многие-ко-многим)
+    return $this->belongsToMany(Quest::class, 'quest_route', 'route_id', 'quest_id')
+        ->withPivot('order', 'is_required', 'verification_data');
+}
 }

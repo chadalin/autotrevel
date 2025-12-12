@@ -57,13 +57,14 @@ class Quest extends Model
     ];
 
     public function routes()
-    {
-        return $this->belongsToMany(Route::class, 'quest_routes')
-            ->withPivot('order', 'is_required', 'verification_data')
-            ->orderBy('quest_routes.order');
-    }
+{
+    return $this->belongsToMany(Route::class, 'quest_routes', 'quest_id', 'route_id')
+        ->withPivot('order', 'is_required', 'verification_data')
+        ->orderBy('quest_routes.order')
+        ->select(['travel_routes.*', 'quest_routes.order as pivot_order']); // Явно указываем таблицу
+}
 
-    public requiredRoutes()
+    public function requiredRoutes()
     {
         return $this->routes()->wherePivot('is_required', true);
     }
@@ -226,45 +227,65 @@ class Quest extends Model
     }
 
     public function checkRequirements(User $user)
-    {
-        $requirements = $this->requirements ?? [];
-
-        if (empty($requirements)) {
-            return true;
-        }
-
-        foreach ($requirements as $requirement) {
-            switch ($requirement['type']) {
-                case 'min_level':
-                    if ($user->level < $requirement['value']) {
-                        return false;
-                    }
-                    break;
-                    
-                case 'completed_quests':
-                    $completed = $user->userQuests()->where('status', 'completed')->count();
-                    if ($completed < $requirement['value']) {
-                        return false;
-                    }
-                    break;
-                    
-                case 'required_badges':
-                    $badgeIds = $user->badges()->pluck('badge_id')->toArray();
-                    $missing = array_diff($requirement['badges'], $badgeIds);
-                    if (!empty($missing)) {
-                        return false;
-                    }
-                    break;
-                    
-                case 'min_distance':
-                    $stats = $user->stats;
-                    if ($stats->distance_traveled < $requirement['value']) {
-                        return false;
-                    }
-                    break;
-            }
-        }
-
+{
+    // Получаем требования из JSON поля
+    $requirements = $this->requirements;
+    
+    // Если это строка JSON, декодируем
+    if (is_string($requirements)) {
+        $requirements = json_decode($requirements, true);
+    }
+    
+    // Если не массив или пусто, возвращаем true
+    if (empty($requirements) || !is_array($requirements)) {
         return true;
     }
+
+    foreach ($requirements as $requirement) {
+        // Проверяем структуру требования
+        if (!isset($requirement['type']) || !isset($requirement['value'])) {
+            break; // Вместо continue
+        }
+        
+        switch ($requirement['type']) {
+            case 'min_level':
+                if ($user->level < $requirement['value']) {
+                    return false;
+                }
+                break;
+                
+            case 'completed_quests':
+                $completed = $user->userQuests()->where('status', 'completed')->count();
+                if ($completed < $requirement['value']) {
+                    return false;
+                }
+                break;
+                
+            case 'required_badges':
+                // Проверяем наличие поля badges
+                if (!isset($requirement['badges']) || !is_array($requirement['badges'])) {
+                    break; // Вместо continue
+                }
+                $badgeIds = $user->badges()->pluck('badge_id')->toArray();
+                $missing = array_diff($requirement['badges'], $badgeIds);
+                if (!empty($missing)) {
+                    return false;
+                }
+                break;
+                
+            case 'min_distance':
+                $stats = $user->stats;
+                if (!$stats || $stats->distance_traveled < $requirement['value']) {
+                    return false;
+                }
+                break;
+                
+            default:
+                // Неизвестный тип требования - пропускаем
+                break; // Вместо continue
+        }
+    }
+
+    return true;
+}
 }

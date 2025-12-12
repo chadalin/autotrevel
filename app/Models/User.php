@@ -44,6 +44,50 @@ class User extends Authenticatable
     // ... существующие методы ...
 
     // Новые отношения
+
+    /**
+     * Генерирует код верификации
+     */
+    public function generateVerificationCode()
+    {
+        $code = str_pad(mt_rand(0, 999999), 6, '0', STR_PAD_LEFT);
+        
+        $this->update([
+            'verification_code' => $code,
+            'verification_code_expires_at' => now()->addMinutes(15),
+        ]);
+
+        return $code;
+    }
+
+    /**
+     * Проверяет код верификации
+     */
+    public function verifyCode($code)
+    {
+        if (!$this->verification_code || !$this->verification_code_expires_at) {
+            return false;
+        }
+
+        if ($this->verification_code_expires_at->isPast()) {
+            return false;
+        }
+
+        if ($this->verification_code !== $code) {
+            return false;
+        }
+
+        $this->update([
+            'verification_code' => null,
+            'verification_code_expires_at' => null,
+            'is_verified' => true,
+            'email_verified_at' => now(),
+        ]);
+
+        return true;
+    }
+
+
     public function userQuests()
     {
         return $this->hasMany(UserQuest::class);
@@ -158,4 +202,10 @@ class User extends Authenticatable
             $user->stats()->create();
         });
     }
+
+    public function savedRoutes()
+{
+    return $this->belongsToMany(Route::class, 'saved_routes', 'user_id', 'route_id')
+                ->withTimestamps();
+}
 }

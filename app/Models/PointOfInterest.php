@@ -9,6 +9,8 @@ class PointOfInterest extends Model
 {
     use HasFactory;
 
+
+        protected $table = 'points_of_interest';
     protected $fillable = [
         'route_id',
         'title',

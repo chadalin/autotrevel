@@ -5,6 +5,10 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Auth\EmailVerificationController;
 use App\Http\Controllers\RouteController;
 use App\Http\Controllers\QuestController;
+use App\Http\Controllers\AdminController;
+use App\Http\Controllers\ChatController;
+use App\Http\Controllers\MessageController;
+use App\Http\Controllers\CommentController;
 
 use App\Http\Controllers\ReviewController;
 // Главная страница
@@ -72,4 +76,60 @@ Route::prefix('quests')->name('quests.')->group(function () {
         Route::get('/moderate', [QuestController::class, 'adminModerate'])->name('moderate');
         Route::post('/verify/{completion}', [QuestController::class, 'adminVerify'])->name('verify');
     });
+});
+
+// Админ маршруты
+Route::prefix('admin')->name('admin.')->group(function () {
+    Route::get('/', [AdminController::class, 'dashboard'])->name('dashboard');
+    Route::get('/users', [AdminController::class, 'users'])->name('users.index');
+    Route::get('/routes', [AdminController::class, 'routes'])->name('routes.index');
+    Route::post('/routes/{route}/moderate', [AdminController::class, 'moderateRoute'])->name('routes.moderate');
+    Route::get('/quests', [AdminController::class, 'quests'])->name('quests.index');
+    Route::get('/reports', [AdminController::class, 'reports'])->name('reports.index');
+    Route::post('/reports/{report}/handle', [AdminController::class, 'handleReport'])->name('reports.handle');
+    Route::get('/settings', [AdminController::class, 'settings'])->name('settings');
+    Route::post('/settings', [AdminController::class, 'updateSettings'])->name('settings.update');
+});
+
+// Чат маршруты
+Route::prefix('chats')->name('chats.')->middleware('auth')->group(function () {
+    Route::get('/', [ChatController::class, 'index'])->name('index');
+    Route::get('/{chat}', [ChatController::class, 'show'])->name('show');
+    Route::post('/private/{user}', [ChatController::class, 'createPrivate'])->name('private.create');
+    Route::post('/route/{route}', [ChatController::class, 'createRouteChat'])->name('route.create');
+    Route::delete('/{chat}', [ChatController::class, 'destroy'])->name('destroy');
+});
+
+// Сообщения
+Route::prefix('messages')->name('messages.')->middleware('auth')->group(function () {
+    Route::post('/{chat}', [MessageController::class, 'store'])->name('store');
+    Route::put('/{message}', [MessageController::class, 'update'])->name('update');
+    Route::delete('/{message}', [MessageController::class, 'destroy'])->name('destroy');
+    Route::post('/{message}/read', [MessageController::class, 'markAsRead'])->name('read');
+});
+
+// Комментарии
+Route::prefix('comments')->name('comments.')->middleware('auth')->group(function () {
+    Route::post('/', [CommentController::class, 'store'])->name('store');
+    Route::put('/{comment}', [CommentController::class, 'update'])->name('update');
+    Route::delete('/{comment}', [CommentController::class, 'destroy'])->name('destroy');
+    Route::post('/{comment}/like', [CommentController::class, 'toggleLike'])->name('like');
+    Route::post('/{comment}/pin', [CommentController::class, 'pin'])->name('pin');
+    Route::post('/{comment}/unpin', [CommentController::class, 'unpin'])->name('unpin');
+});
+
+
+Route::get('/check-fk', function() {
+    $tables = ['chats', 'chat_user', 'messages', 'comments', 'comment_likes'];
+    
+    $results = [];
+    foreach ($tables as $table) {
+        if (Schema::hasTable($table)) {
+            $results[$table] = DB::select("
+                SHOW CREATE TABLE $table
+            ")[0]->{'Create Table'};
+        }
+    }
+    
+    return view('debug.fk', ['results' => $results]);
 });
