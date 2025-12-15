@@ -593,6 +593,27 @@
     </div>
 </div>
 
+<!-- Кнопка разрешения геолокации -->
+<div id="geolocation-permission-banner" class="fixed bottom-20 right-4 z-50 hidden">
+    <div class="bg-blue-500 text-white rounded-lg shadow-lg p-4 max-w-sm animate-slide-up">
+        <div class="flex items-center mb-2">
+            <i class="fas fa-map-marker-alt mr-2"></i>
+            <h3 class="font-bold">Разрешите геолокацию</h3>
+        </div>
+        <p class="text-sm mb-3">Для работы навигатора необходимо разрешить доступ к вашему местоположению.</p>
+        <div class="flex space-x-2">
+            <button onclick="requestGeolocationPermission()" 
+                    class="flex-1 bg-white text-blue-500 px-4 py-2 rounded font-medium hover:bg-blue-50">
+                Разрешить
+            </button>
+            <button onclick="hideGeolocationBanner()" 
+                    class="flex-1 bg-blue-600 text-white px-4 py-2 rounded font-medium hover:bg-blue-700">
+                Позже
+            </button>
+        </div>
+    </div>
+</div>
+
 @push('scripts')
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/leaflet-control-geocoder/dist/Control.Geocoder.min.js"></script>
@@ -681,112 +702,344 @@ function updateZoomLevel() {
 }
 
 // Получение местоположения пользователя
+// Получение местоположения пользователя
 function getUserLocation(force = false) {
+    console.log('Запрос геолокации...', { force, isTracking });
+    
     if (!navigator.geolocation) {
         showNotification('Геолокация не поддерживается вашим браузером', 'error');
+        showManualLocationInput();
         return;
     }
     
     if (isTracking && !force) {
-        return; // Уже отслеживается
+        console.log('Уже отслеживается, пропускаем...');
+        return;
     }
+    
+    // Проверяем разрешение
+    if (navigator.permissions && navigator.permissions.query) {
+        navigator.permissions.query({ name: 'geolocation' })
+            .then(function(permissionStatus) {
+                console.log('Статус разрешения:', permissionStatus.state);
+                
+                if (permissionStatus.state === 'denied') {
+                    showNotification('Доступ к геолокации запрещен. Разрешите доступ в настройках браузера или установите местоположение вручную.', 'error');
+                    showManualLocationInput();
+                    return;
+                }
+                
+                if (permissionStatus.state === 'prompt') {
+                    showNotification('Разрешите доступ к геолокации для работы навигатора', 'info');
+                }
+                
+                // Запрашиваем местоположение
+                requestGeolocation();
+            })
+            .catch(function(error) {
+                console.warn('Ошибка проверки разрешений:', error);
+                // Продолжаем с запросом местоположения
+                requestGeolocation();
+            });
+    } else {
+        // Для браузеров без поддержки Permissions API
+        requestGeolocation();
+    }
+}
+
+// Запрос геолокации
+function requestGeolocation() {
+    console.log('Запрос геолокации...');
+    
+    const options = {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+    };
     
     navigator.geolocation.getCurrentPosition(
         // Успех
         function(position) {
+            console.log('Геолокация успешна:', position);
+            handleGeolocationSuccess(position);
+        },
+        // Ошибка
+        function(error) {
+            console.error('Ошибка геолокации:', error);
+            handleGeolocationError(error);
+        },
+        options
+    );
+}
+
+// Обработка успешного получения местоположения
+function handleGeolocationSuccess(position) {
+    const latlng = [position.coords.latitude, position.coords.longitude];
+    
+    console.log('Координаты получены:', latlng, 'точность:', position.coords.accuracy);
+    
+    // Создаем или обновляем маркер пользователя
+    if (!userMarker) {
+        userMarker = L.marker(latlng, {
+            icon: L.divIcon({
+                html: `
+                    <div style="
+                        width: 40px;
+                        height: 40px;
+                        background-color: #3B82F6;
+                        border-radius: 50%;
+                        border: 3px solid white;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        color: white;
+                        animation: pulse 2s infinite;
+                    ">
+                        <i class="fas fa-user"></i>
+                    </div>
+                `,
+                className: 'user-marker',
+                iconSize: [40, 40],
+                iconAnchor: [20, 40]
+            }),
+            zIndexOffset: 1000
+        }).addTo(map);
+        
+        userMarker.bindPopup('<b>Ваше местоположение</b>').openPopup();
+        
+        // Добавляем круг точности
+        if (position.coords.accuracy) {
+            accuracyCircle = L.circle(latlng, {
+                radius: position.coords.accuracy,
+                className: 'accuracy-circle',
+                color: '#3B82F6',
+                fillColor: '#3B82F6',
+                weight: 1,
+                fillOpacity: 0.1
+            }).addTo(map);
+        }
+    } else {
+        userMarker.setLatLng(latlng);
+        if (accuracyCircle) {
+            accuracyCircle.setLatLng(latlng).setRadius(position.coords.accuracy);
+        }
+    }
+    
+    // Центрируем карту на пользователе
+    map.setView(latlng, 15);
+    
+    // Обновляем расстояние до текущей точки
+    updateDistanceToCheckpoint(latlng);
+    
+    // Начинаем отслеживание
+    if (!isTracking) {
+        startLocationTracking();
+    }
+    
+    showNotification('Местоположение определено', 'success');
+    
+    // Скрываем форму ручного ввода если есть
+    const manualInput = document.getElementById('manual-location-input');
+    if (manualInput) {
+        manualInput.remove();
+    }
+}
+
+// Обработка ошибки геолокации
+function handleGeolocationError(error) {
+    let message = 'Не удалось определить ваше местоположение';
+    
+    switch(error.code) {
+        case error.PERMISSION_DENIED:
+            console.log('PERMISSION_DENIED:', error);
+            message = 'Доступ к геолокации запрещен. ';
+            
+            // Проверяем HTTPS
+            if (window.location.protocol !== 'https:') {
+                message += 'Работа геолокации требует HTTPS соединения. ';
+            }
+            
+            message += 'Разрешите доступ в настройках браузера или установите местоположение вручную.';
+            break;
+            
+        case error.POSITION_UNAVAILABLE:
+            console.log('POSITION_UNAVAILABLE:', error);
+            message = 'Информация о местоположении недоступна. Проверьте GPS или используйте ручной ввод.';
+            break;
+            
+        case error.TIMEOUT:
+            console.log('TIMEOUT:', error);
+            message = 'Время ожидания получения местоположения истекло. Попробуйте снова или используйте ручной ввод.';
+            break;
+            
+        default:
+            console.log('Unknown error:', error);
+            message = 'Произошла неизвестная ошибка при определении местоположения.';
+    }
+    
+    showNotification(message, 'error');
+    
+    // Показываем кнопку для ручного ввода местоположения
+    showManualLocationInput();
+    
+    // Если уже отслеживаем, останавливаем
+    if (userWatchId) {
+        navigator.geolocation.clearWatch(userWatchId);
+        userWatchId = null;
+        isTracking = false;
+    }
+}
+
+// Улучшенная форма для ручного ввода местоположения
+function showManualLocationInput() {
+    // Если форма уже есть, не показываем снова
+    if (document.getElementById('manual-location-input')) {
+        return;
+    }
+    
+    const manualLocationHTML = `
+        <div id="manual-location-input" class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-4 animate-slide-up">
+            <div class="flex items-center mb-3">
+                <i class="fas fa-map-marker-alt text-yellow-600 mr-2"></i>
+                <h3 class="font-bold text-yellow-800">Установить местоположение вручную</h3>
+            </div>
+            
+            <div class="space-y-3">
+                <div class="flex space-x-2">
+                    <div class="flex-1">
+                        <label class="block text-sm font-medium text-yellow-700 mb-1">Широта</label>
+                        <input type="number" step="0.000001" id="manual-lat" 
+                               placeholder="55.7558" 
+                               class="w-full p-2 border border-yellow-300 rounded focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                    </div>
+                    <div class="flex-1">
+                        <label class="block text-sm font-medium text-yellow-700 mb-1">Долгота</label>
+                        <input type="number" step="0.000001" id="manual-lng" 
+                               placeholder="37.6173" 
+                               class="w-full p-2 border border-yellow-300 rounded focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
+                    </div>
+                </div>
+                
+                <div class="text-sm text-yellow-600 mb-3">
+                    <p>Примеры координат:</p>
+                    <div class="grid grid-cols-2 gap-2 mt-1">
+                        <button type="button" onclick="setExample('moscow')" class="text-left hover:text-yellow-800">
+                            <span class="font-medium">Москва:</span> 55.7558, 37.6173
+                        </button>
+                        <button type="button" onclick="setExample('spb')" class="text-left hover:text-yellow-800">
+                            <span class="font-medium">СПб:</span> 59.9343, 30.3351
+                        </button>
+                        <button type="button" onclick="setExample('kazan')" class="text-left hover:text-yellow-800">
+                            <span class="font-medium">Казань:</span> 55.7961, 49.1064
+                        </button>
+                        <button type="button" onclick="setExample('ekb')" class="text-left hover:text-yellow-800">
+                            <span class="font-medium">Екатеринбург:</span> 56.8389, 60.6057
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="flex space-x-2">
+                    <button onclick="setManualLocation()" 
+                            class="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded font-medium flex items-center justify-center">
+                        <i class="fas fa-check mr-2"></i> Установить
+                    </button>
+                    <button onclick="useCurrentLocation()" 
+                            class="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded font-medium flex items-center justify-center">
+                        <i class="fas fa-location-arrow mr-2"></i> Попробовать снова
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Добавляем под картой
+    const mapContainer = document.querySelector('#navigation-map').parentElement;
+    const div = document.createElement('div');
+    div.innerHTML = manualLocationHTML;
+    mapContainer.appendChild(div);
+}
+
+// Установить пример координат
+function setExample(city) {
+    const examples = {
+        'moscow': { lat: 55.7558, lng: 37.6173 },
+        'spb': { lat: 59.9343, lng: 30.3351 },
+        'kazan': { lat: 55.7961, lng: 49.1064 },
+        'ekb': { lat: 56.8389, lng: 60.6057 }
+    };
+    
+    if (examples[city]) {
+        document.getElementById('manual-lat').value = examples[city].lat;
+        document.getElementById('manual-lng').value = examples[city].lng;
+    }
+}
+
+// Попробовать снова получить текущее местоположение
+function useCurrentLocation() {
+    // Скрываем форму
+    const manualInput = document.getElementById('manual-location-input');
+    if (manualInput) {
+        manualInput.remove();
+    }
+    
+    // Пробуем снова
+    getUserLocation(true);
+}
+
+// Начать отслеживание местоположения с улучшенной обработкой ошибок
+function startLocationTracking() {
+    if (userWatchId || !navigator.geolocation) {
+        return;
+    }
+    
+    console.log('Начало отслеживания местоположения...');
+    
+    const options = {
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 1000
+    };
+    
+    userWatchId = navigator.geolocation.watchPosition(
+        function(position) {
             const latlng = [position.coords.latitude, position.coords.longitude];
             
-            console.log('Получено местоположение:', latlng);
+            console.log('Обновление местоположения:', latlng);
             
-            // Создаем или обновляем маркер пользователя
-            if (!userMarker) {
-                userMarker = L.marker(latlng, {
-                    icon: L.divIcon({
-                        html: `
-                            <div style="
-                                width: 40px;
-                                height: 40px;
-                                background-color: #3B82F6;
-                                border-radius: 50%;
-                                border: 3px solid white;
-                                box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-                                display: flex;
-                                align-items: center;
-                                justify-content: center;
-                                color: white;
-                            ">
-                                <i class="fas fa-user"></i>
-                            </div>
-                        `,
-                        className: 'user-marker',
-                        iconSize: [40, 40],
-                        iconAnchor: [20, 40]
-                    }),
-                    zIndexOffset: 1000
-                }).addTo(map);
-                
-                userMarker.bindPopup('<b>Ваше местоположение</b>').openPopup();
-                
-                // Добавляем круг точности
-                if (position.coords.accuracy) {
-                    accuracyCircle = L.circle(latlng, {
-                        radius: position.coords.accuracy,
-                        className: 'accuracy-circle',
-                        color: '#3B82F6',
-                        fillColor: '#3B82F6',
-                        weight: 1,
-                        fillOpacity: 0.1
-                    }).addTo(map);
-                }
-            } else {
+            if (userMarker) {
                 userMarker.setLatLng(latlng);
                 if (accuracyCircle) {
                     accuracyCircle.setLatLng(latlng).setRadius(position.coords.accuracy);
                 }
             }
             
-            // Центрируем карту на пользователе
-            map.setView(latlng, 15);
-            
-            // Обновляем расстояние до текущей точки
             updateDistanceToCheckpoint(latlng);
             
-            // Начинаем отслеживание
-            if (!isTracking) {
-                startLocationTracking();
+            // Автоматическое приближение при первом получении
+            if (!window.userLocationInitialized) {
+                map.setView(latlng, 15);
+                window.userLocationInitialized = true;
             }
-            
-            showNotification('Местоположение определено', 'success');
         },
-        // Ошибка
         function(error) {
-            console.error('Ошибка геолокации:', error);
+            console.error('Ошибка отслеживания:', error);
             
-            let message = 'Не удалось получить ваше местоположение';
-            switch(error.code) {
-                case error.PERMISSION_DENIED:
-                    message = 'Доступ к геолокации запрещен. Разрешите доступ в настройках браузера.';
-                    break;
-                case error.POSITION_UNAVAILABLE:
-                    message = 'Информация о местоположении недоступна.';
-                    break;
-                case error.TIMEOUT:
-                    message = 'Время ожидания получения местоположения истекло.';
-                    break;
+            // Не показываем уведомление для каждой ошибки
+            if (error.code === error.PERMISSION_DENIED) {
+                console.log('Отслеживание остановлено: доступ запрещен');
+                if (userWatchId) {
+                    navigator.geolocation.clearWatch(userWatchId);
+                    userWatchId = null;
+                    isTracking = false;
+                }
             }
-            
-            showNotification(message, 'error');
-            
-            // Показываем кнопку для ручного ввода местоположения
-            showManualLocationInput();
         },
-        // Опции
-        {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0
-        }
+        options
     );
+    
+    isTracking = true;
+    console.log('Отслеживание начато, watchId:', userWatchId);
 }
 
 // Показать форму для ручного ввода местоположения

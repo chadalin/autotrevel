@@ -76,4 +76,9 @@ class RouteCheckpoint extends Model
     {
         return $this->photo_path ? Storage::url($this->photo_path) : null;
     }
+
+     public function route(): BelongsTo
+    {
+        return $this->belongsTo(Route::class, 'route_id');
+    }
 }

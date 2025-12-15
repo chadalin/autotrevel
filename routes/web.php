@@ -74,8 +74,9 @@ Route::prefix('quests')->name('quests.')->group(function () {
     Route::get('/', [QuestController::class, 'index'])->name('index');
     Route::get('/map', [QuestController::class, 'mapQuests'])->name('map');
     Route::get('/leaderboard', [QuestController::class, 'leaderboard'])->name('leaderboard');
-    Route::get('/{slug}', [QuestController::class, 'show'])->name('show');
-    
+    Route::get('/my', [QuestController::class, 'myQuests'])->name('my');
+     Route::get('/{quest:slug}', [QuestController::class, 'show'])->name('show');;
+    Route::get('/{slug}', [QuestController::class, 'create'])->name('craete');
     // Требуют авторизации
     Route::middleware(['auth'])->group(function () {
         Route::get('/my/quests', [QuestController::class, 'myQuests'])->name('my');
@@ -104,12 +105,24 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::get('/', [AdminController::class, 'dashboard'])->name('dashboard');
     Route::get('/users', [AdminController::class, 'users'])->name('users.index');
     Route::get('/routes', [AdminController::class, 'routes'])->name('routes.index');
+    Route::get('/routes/{route}', [AdminController::class, 'show'])->name('routes.show');
     Route::post('/routes/{route}/moderate', [AdminController::class, 'moderateRoute'])->name('routes.moderate');
     Route::get('/quests', [AdminController::class, 'quests'])->name('quests.index');
     Route::get('/reports', [AdminController::class, 'reports'])->name('reports.index');
     Route::post('/reports/{report}/handle', [AdminController::class, 'handleReport'])->name('reports.handle');
     Route::get('/settings', [AdminController::class, 'settings'])->name('settings');
     Route::post('/settings', [AdminController::class, 'updateSettings'])->name('settings.update');
+     
+    // Квесты
+    Route::get('/quests', [\App\Http\Controllers\Admin\QuestController::class, 'index'])->name('quests.index');
+    Route::get('/quests/create', [\App\Http\Controllers\Admin\QuestController::class, 'create'])->name('quests.create');
+    Route::post('/quests', [\App\Http\Controllers\Admin\QuestController::class, 'store'])->name('quests.store');
+    Route::get('/quests/{quest}', [\App\Http\Controllers\Admin\QuestController::class, 'show'])->name('quests.show');
+    Route::get('/quests/{quest}/edit', [\App\Http\Controllers\Admin\QuestController::class, 'edit'])->name('quests.edit');
+    Route::put('/quests/{quest}', [\App\Http\Controllers\Admin\QuestController::class, 'update'])->name('quests.update');
+    Route::delete('/quests/{quest}', [\App\Http\Controllers\Admin\QuestController::class, 'destroy'])->name('quests.destroy');
+    Route::post('/quests/{quest}/toggle-status', [\App\Http\Controllers\Admin\QuestController::class, 'toggleStatus'])->name('quests.toggle-status');
+    Route::get('/quests/{quest}/stats', [\App\Http\Controllers\Admin\QuestController::class, 'stats'])->name('quests.stats');
 });
 
 // Чат маршруты

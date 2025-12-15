@@ -14,6 +14,8 @@ class DatabaseSeeder extends Seeder
            // BadgeSeeder::class,
             RouteSeeder::class,
             QuestSeeder::class,
+             // Сидеры для квестов и связей с маршрутами
+            QuestRoutesSeeder::class,
         ]);
     }
 }

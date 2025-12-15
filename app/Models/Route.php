@@ -229,4 +229,14 @@ public function getCompletionsCountAttribute()
     return $this->completions()->count();
 }
 
+public function checkpoints(): HasMany
+    {
+        return $this->hasMany(RouteCheckpoint::class, 'route_id');
+    }
+    
+    public function sessions(): HasMany
+    {
+        return $this->hasMany(RouteSession::class, 'route_id');
+    }
+
 }

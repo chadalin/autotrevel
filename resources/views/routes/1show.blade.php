@@ -185,6 +185,9 @@
         </div>
     </div>
 
+    <!-- Кнопка прохождения маршрута -->
+
+    
     <!-- Основной контент -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <!-- Левая колонка -->
@@ -564,183 +567,6 @@
                 </div>
             </div>
             
-            <!-- Блок запуска маршрута -->
-            @php
-                // Выносим логику в переменные в начале секции
-                $activeSession = null;
-                $hasCompleted = false;
-                $userActiveQuests = collect();
-                
-                if (auth()->check()) {
-                    $activeSession = \App\Models\RouteSession::where('user_id', auth()->id())
-                        ->where('route_id', $route->id)
-                        ->whereIn('status', ['active', 'paused'])
-                        ->first();
-                        
-                    $hasCompleted = \App\Models\RouteCompletion::where('user_id', auth()->id())
-                        ->where('route_id', $route->id)
-                        ->exists();
-                    
-                    $userActiveQuests = auth()->user()->userQuests()
-                        ->where('status', 'in_progress')
-                        ->whereHas('quest.routes', function($q) use ($route) {
-                            $q->where('travel_routes.id', $route->id);
-                        })
-                        ->with('quest')
-                        ->get();
-                }
-            @endphp
-            
-            @auth
-                @if($activeSession)
-                    <!-- Есть активная сессия -->
-                    <div class="bg-gradient-to-r from-blue-50 to-cyan-100 rounded-xl shadow-lg p-6">
-                        <div class="flex items-center justify-between mb-4">
-                            <div>
-                                <h3 class="font-bold text-lg text-gray-800 mb-1">🚗 Маршрут в процессе</h3>
-                                <p class="text-gray-700">Вы проходите этот маршрут</p>
-                            </div>
-                            <div class="px-3 py-1 bg-blue-500 text-white rounded-full text-sm font-medium">
-                                {{ $activeSession->getProgressPercentage() }}%
-                            </div>
-                        </div>
-                        
-                        <div class="space-y-3">
-                            <a href="{{ route('routes.navigate', $route) }}" 
-                               class="block w-full bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white text-center py-3 rounded-lg font-bold text-lg transition duration-300 shadow-lg hover:shadow-xl">
-                                <i class="fas fa-play-circle mr-2"></i> Продолжить навигацию
-                            </a>
-                            
-                            <div class="flex space-x-3">
-                                <form action="{{ route('routes.navigation.pause', $activeSession) }}" method="POST" class="flex-1">
-                                    @csrf
-                                    <button type="submit" 
-                                            class="w-full bg-yellow-500 hover:bg-yellow-600 text-white py-2 rounded-lg font-medium transition duration-300">
-                                        <i class="fas fa-pause mr-2"></i> Пауза
-                                    </button>
-                                </form>
-                                
-                                <form action="{{ route('routes.navigation.complete', $activeSession) }}" method="POST" class="flex-1">
-                                    @csrf
-                                    <button type="submit" 
-                                            onclick="return confirm('Завершить маршрут?')"
-                                            class="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-medium transition duration-300">
-                                        <i class="fas fa-flag-checkered mr-2"></i> Завершить
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                    
-                @elseif($hasCompleted)
-                    <!-- Маршрут уже пройден -->
-                    <div class="bg-gradient-to-r from-green-50 to-emerald-100 rounded-xl shadow-lg p-6">
-                        <h3 class="font-bold text-lg text-gray-800 mb-4">🎉 Маршрут пройден!</h3>
-                        <p class="text-gray-700 mb-4">Вы успешно завершили этот маршрут!</p>
-                        
-                        @if($userActiveQuests->count() > 0)
-                            <div class="mb-4">
-                                <p class="text-sm font-medium text-gray-700 mb-2">Пройти еще раз для квестов:</p>
-                                <div class="space-y-2">
-                                    @foreach($userActiveQuests as $userQuest)
-                                        <div class="bg-white rounded-lg p-3 border border-green-200">
-                                            <div class="flex items-center justify-between">
-                                                <div>
-                                                    <p class="font-medium text-gray-800">{{ $userQuest->quest->title }}</p>
-                                                    <p class="text-xs text-gray-600">
-                                                        Прогресс: {{ $userQuest->progress_percentage ?? 0 }}%
-                                                    </p>
-                                                </div>
-                                                <form action="{{ route('routes.navigation.start', $route) }}" method="POST">
-                                                    @csrf
-                                                    <input type="hidden" name="quest_id" value="{{ $userQuest->quest->id }}">
-                                                    <button type="submit" 
-                                                            class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium">
-                                                        <i class="fas fa-redo mr-1"></i> Пройти
-                                                    </button>
-                                                </form>
-                                            </div>
-                                        </div>
-                                    @endforeach
-                                </div>
-                            </div>
-                        @endif
-                        
-                        <form action="{{ route('routes.navigation.start', $route) }}" method="POST">
-                            @csrf
-                            <button type="submit" 
-                                    class="block w-full bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white text-center py-3 rounded-lg font-bold text-lg transition duration-300 shadow-lg hover:shadow-xl">
-                                <i class="fas fa-play mr-2"></i> Пройти еще раз
-                            </button>
-                        </form>
-                    </div>
-                    
-                @else
-                    <!-- Маршрут еще не проходился -->
-                    <div class="bg-gradient-to-r from-orange-50 to-red-100 rounded-xl shadow-lg p-6">
-                        <h3 class="font-bold text-lg text-gray-800 mb-4">🚀 Начать путешествие</h3>
-                        <p class="text-gray-700 mb-4">Запустите навигатор и отправляйтесь в путь!</p>
-                        
-                        @if($userActiveQuests->count() > 0)
-                            <div class="mb-4">
-                                <p class="text-sm font-medium text-gray-700 mb-2">Начать маршрут для квестов:</p>
-                                <div class="space-y-2">
-                                    @foreach($userActiveQuests as $userQuest)
-                                        <div class="bg-white rounded-lg p-3 border border-orange-200">
-                                            <div class="flex items-center justify-between">
-                                                <div>
-                                                    <p class="font-medium text-gray-800">{{ $userQuest->quest->title }}</p>
-                                                    <p class="text-xs text-gray-600">
-                                                        +{{ $userQuest->quest->reward_xp }} XP • 
-                                                        {{ $userQuest->quest->routes->count() }} маршрутов
-                                                    </p>
-                                                </div>
-                                                <form action="{{ route('routes.navigation.start', $route) }}" method="POST">
-                                                    @csrf
-                                                    <input type="hidden" name="quest_id" value="{{ $userQuest->quest->id }}">
-                                                    <button type="submit" 
-                                                            class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium">
-                                                        <i class="fas fa-play mr-1"></i> Для квеста
-                                                    </button>
-                                                </form>
-                                            </div>
-                                        </div>
-                                    @endforeach
-                                </div>
-                            </div>
-                        @endif
-                        
-                        <form action="{{ route('routes.navigation.start', $route) }}" method="POST">
-                            @csrf
-                            <button type="submit" 
-                                    class="block w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white text-center py-3 rounded-lg font-bold text-lg transition duration-300 shadow-lg hover:shadow-xl">
-                                <i class="fas fa-play-circle mr-2"></i> Запустить навигатор
-                            </button>
-                        </form>
-                        
-                        <div class="mt-4 p-3 bg-white rounded-lg border border-orange-200">
-                            <div class="flex items-center">
-                                <i class="fas fa-info-circle text-orange-500 mr-2"></i>
-                                <p class="text-sm text-gray-700">
-                                    Навигатор поможет вам следовать по маршруту, отмечать точки интереса и выполнять задания квестов
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                @endif
-                
-            @else
-                <!-- Для неавторизованных -->
-                <div class="bg-gradient-to-r from-gray-50 to-blue-50 rounded-xl shadow-lg p-6">
-                    <h3 class="font-bold text-lg text-gray-800 mb-4">Хотите отправиться в путь?</h3>
-                    <p class="text-gray-700 mb-4">Войдите, чтобы запустить навигатор по маршруту!</p>
-                    <a href="{{ route('login') }}" 
-                       class="block w-full bg-gradient-to-r from-orange-500 to-red-600 text-white text-center py-3 rounded-lg font-bold text-lg hover:from-orange-600 hover:to-red-700 transition duration-300">
-                        Войти и начать путешествие
-                    </a>
-                </div>
-            @endauth
-            
             <!-- Похожие маршруты -->
             @if($similarRoutes->count() > 0)
                 <div class="bg-white rounded-xl shadow-lg p-6">
@@ -808,11 +634,209 @@
                         </div>
                         <i class="fas fa-chevron-right text-gray-400"></i>
                     </a>
+
+
+                    <!-- Кнопка прохождения маршрута -->
+@auth
+    <div class="bg-gradient-to-r from-green-50 to-emerald-100 rounded-xl shadow-lg p-6 mb-6">
+        <h3 class="font-bold text-lg text-gray-800 mb-4">Проехали этот маршрут?</h3>
+        <p class="text-gray-700 mb-4">Подтвердите прохождение маршрута, чтобы получить достижения и опыт!</p>
+        
+        <a href="{{ route('routes.complete', $route) }}"
+           class="block w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white text-center py-3 rounded-lg font-bold text-lg transition duration-300 shadow-lg hover:shadow-xl">
+            <i class="fas fa-check-circle mr-2"></i> Проехал маршрут!
+        </a>
+    </div>
+@else
+    <div class="bg-gradient-to-r from-gray-50 to-blue-50 rounded-xl shadow-lg p-6 mb-6">
+        <h3 class="font-bold text-lg text-gray-800 mb-4">Хотите отметить прохождение?</h3>
+        <p class="text-gray-700 mb-4">Войдите, чтобы подтвердить прохождение маршрута и получать достижения!</p>
+        <a href="{{ route('login') }}" 
+           class="block w-full bg-gradient-to-r from-orange-500 to-red-600 text-white text-center py-3 rounded-lg font-bold text-lg hover:from-orange-600 hover:to-red-700 transition duration-300">
+            Войти в аккаунт
+        </a>
+
+     
+    </div>
+@endauth
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+
+<!-- Блок запуска маршрута -->
+@auth
+    @php
+        // Проверяем, есть ли активная сессия
+        $activeSession = \App\Models\RouteSession::where('user_id', auth()->id())
+            ->where('route_id', $route->id)
+            ->whereIn('status', ['active', 'paused'])
+            ->first();
+            
+        $hasCompleted = \App\Models\RouteCompletion::where('user_id', auth()->id())
+            ->where('route_id', $route->id)
+            ->exists();
+        
+        // Получаем активные квесты с этим маршрутом
+        $userActiveQuests = auth()->user()->userQuests()
+            ->where('status', 'in_progress')
+            ->whereHas('quest.routes', function($q) use ($route) {
+                $q->where('travel_routes.id', $route->id);
+            })
+            ->with('quest')
+            ->get();
+    @endphp
+    
+   1 @if($activeSession)
+        <!-- Есть активная сессия -->
+        <div class="bg-gradient-to-r from-blue-50 to-cyan-100 rounded-xl shadow-lg p-6 mb-6">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h3 class="font-bold text-lg text-gray-800 mb-1">🚗 Маршрут в процессе</h3>
+                    <p class="text-gray-700">Вы проходите этот маршрут</p>
+                </div>
+                <div class="px-3 py-1 bg-blue-500 text-white rounded-full text-sm font-medium">
+                    {{ $activeSession->getProgressPercentage() }}%
+                </div>
+            </div>
+            
+            <div class="space-y-3">
+                <a href="{{ route('routes.navigate', $route) }}" 
+                   class="block w-full bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white text-center py-3 rounded-lg font-bold text-lg transition duration-300 shadow-lg hover:shadow-xl">
+                    <i class="fas fa-play-circle mr-2"></i> Продолжить навигацию
+                </a>
+                
+                <div class="flex space-x-3">
+                    <form action="{{ route('routes.navigation.pause', $activeSession) }}" method="POST" class="flex-1">
+                        @csrf
+                        <button type="submit" 
+                                class="w-full bg-yellow-500 hover:bg-yellow-600 text-white py-2 rounded-lg font-medium transition duration-300">
+                            <i class="fas fa-pause mr-2"></i> Пауза
+                        </button>
+                    </form>
+                    
+                    <form action="{{ route('routes.navigation.complete', $activeSession) }}" method="POST" class="flex-1">
+                        @csrf
+                        <button type="submit" 
+                                onclick="return confirm('Завершить маршрут?')"
+                                class="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-medium transition duration-300">
+                            <i class="fas fa-flag-checkered mr-2"></i> Завершить
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+    @elseif($hasCompleted)
+        <!-- Маршрут уже пройден -->
+        <div class="bg-gradient-to-r from-green-50 to-emerald-100 rounded-xl shadow-lg p-6 mb-6">
+            <h3 class="font-bold text-lg text-gray-800 mb-4">🎉 Маршрут пройден!</h3>
+            <p class="text-gray-700 mb-4">Вы успешно завершили этот маршрут!</p>
+            
+            @if($userActiveQuests->count() > 0)
+                <div class="mb-4">
+                    <p class="text-sm font-medium text-gray-700 mb-2">Пройти еще раз для квестов:</p>
+                    <div class="space-y-2">
+                        @foreach($userActiveQuests as $userQuest)
+                            <div class="bg-white rounded-lg p-3 border border-green-200">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="font-medium text-gray-800">{{ $userQuest->quest->title }}</p>
+                                        <p class="text-xs text-gray-600">
+                                            Прогресс: {{ $userQuest->progress_percentage ?? 0 }}%
+                                        </p>
+                                    </div>
+                                    <form action="{{ route('routes.navigation.start', $route) }}" method="POST">
+                                        @csrf
+                                        <input type="hidden" name="quest_id" value="{{ $userQuest->quest->id }}">
+                                        <button type="submit" 
+                                                class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium">
+                                            <i class="fas fa-redo mr-1"></i> Пройти
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+            
+            <form action="{{ route('routes.navigation.start', $route) }}" method="POST">
+                @csrf
+                <button type="submit" 
+                        class="block w-full bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white text-center py-3 rounded-lg font-bold text-lg transition duration-300 shadow-lg hover:shadow-xl">
+                    <i class="fas fa-play mr-2"></i> Пройти еще раз
+                </button>
+            </form>
+        </div>
+        
+    @else
+        <!-- Маршрут еще не проходился -->
+        <div class="bg-gradient-to-r from-orange-50 to-red-100 rounded-xl shadow-lg p-6 mb-6">
+            <h3 class="font-bold text-lg text-gray-800 mb-4">🚀 Начать путешествие</h3>
+            <p class="text-gray-700 mb-4">Запустите навигатор и отправляйтесь в путь!</p>
+            
+            @if($userActiveQuests->count() > 0)
+                <div class="mb-4">
+                    <p class="text-sm font-medium text-gray-700 mb-2">Начать маршрут для квестов:</p>
+                    <div class="space-y-2">
+                        @foreach($userActiveQuests as $userQuest)
+                            <div class="bg-white rounded-lg p-3 border border-orange-200">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="font-medium text-gray-800">{{ $userQuest->quest->title }}</p>
+                                        <p class="text-xs text-gray-600">
+                                            +{{ $userQuest->quest->reward_xp }} XP • 
+                                            {{ $userQuest->quest->routes->count() }} маршрутов
+                                        </p>
+                                    </div>
+                                    <form action="{{ route('routes.navigation.start', $route) }}" method="POST">
+                                        @csrf
+                                        <input type="hidden" name="quest_id" value="{{ $userQuest->quest->id }}">
+                                        <button type="submit" 
+                                                class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium">
+                                            <i class="fas fa-play mr-1"></i> Для квеста
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+            
+            <form action="{{ route('routes.navigation.start', $route) }}" method="POST">
+                @csrf
+                <button type="submit" 
+                        class="block w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white text-center py-3 rounded-lg font-bold text-lg transition duration-300 shadow-lg hover:shadow-xl">
+                    <i class="fas fa-play-circle mr-2"></i> Запустить навигатор
+                </button>
+            </form>
+            
+            <div class="mt-4 p-3 bg-white rounded-lg border border-orange-200">
+                <div class="flex items-center">
+                    <i class="fas fa-info-circle text-orange-500 mr-2"></i>
+                    <p class="text-sm text-gray-700">
+                        Навигатор поможет вам следовать по маршруту, отмечать точки интереса и выполнять задания квестов
+                    </p>
+                </div>
+            </div>
+        </div>
+    @endif
+    
+@else
+    <!-- Для неавторизованных -->
+    <div class="bg-gradient-to-r from-gray-50 to-blue-50 rounded-xl shadow-lg p-6 mb-6">
+        <h3 class="font-bold text-lg text-gray-800 mb-4">Хотите отправиться в путь?</h3>
+        <p class="text-gray-700 mb-4">Войдите, чтобы запустить навигатор по маршруту!</p>
+        <a href="{{ route('login') }}" 
+           class="block w-full bg-gradient-to-r from-orange-500 to-red-600 text-white text-center py-3 rounded-lg font-bold text-lg hover:from-orange-600 hover:to-red-700 transition duration-300">
+            Войти и начать путешествие
+        </a>
+    </div>
+@endauth
 
 <!-- Модальное окно для изображений -->
 <div id="image-modal" class="hidden fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center">
@@ -826,10 +850,6 @@
 @endsection
 
 @push('scripts')
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-        crossorigin=""></script>
-
 <script>
 // Глобальная переменная для карты
 let routeMap = null;

@@ -209,34 +209,63 @@ class QuestController extends Controller
 
     // Мои квесты
     public function myQuests(Request $request)
-    {
-        $user = Auth::user();
-        
-        $status = $request->get('status', 'active');
-        
-        $query = $user->userQuests()->with('quest');
-        
-        switch ($status) {
-            case 'active':
-                $query->where('status', 'in_progress');
-                break;
-            case 'completed':
-                $query->where('status', 'completed');
-                break;
-            case 'available':
-                // Доступные, но ещё не начатые квесты
-                $availableQuests = $user->getAvailableQuests();
-                return view('quests.my', [
-                    'quests' => $availableQuests,
-                    'status' => 'available',
-                    'userStats' => $user->stats,
-                ]);
-        }
-        
-        $quests = $query->paginate(12);
-        
-        return view('quests.my', compact('quests', 'status', 'userStats'));
+{
+    $user = auth()->user();
+    $status = $request->get('status', 'active');
+    
+    // Получаем статистику пользователя
+    $userStats = [
+        'total_exp' => $user->exp,
+        'level' => $user->level,
+        'active_quests' => $user->userQuests()->where('status', 'in_progress')->count(),
+        'completed_quests' => $user->userQuests()->where('status', 'completed')->count(),
+        'total_badges' => $user->badges()->count(),
+        'next_level_exp' => $user->next_level_exp,
+        'exp_to_next_level' => max(0, $user->next_level_exp - $user->exp),
+        'level_progress' => $user->exp > 0 ? min(100, ($user->exp / $user->next_level_exp) * 100) : 0,
+    ];
+    
+    $query = Quest::query();
+    
+    switch ($status) {
+        case 'active':
+            $quests = $user->userQuests()
+                ->where('status', 'in_progress')
+                ->with('quest')
+                ->paginate(12);
+            break;
+            
+        case 'completed':
+            $quests = $user->userQuests()
+                ->where('status', 'completed')
+                ->with('quest')
+                ->latest('completed_at')
+                ->paginate(12);
+            break;
+            
+        case 'available':
+            // Квесты, доступные для начала (не начатые и не завершённые)
+            $startedQuestIds = $user->userQuests()
+                ->whereIn('status', ['in_progress', 'completed'])
+                ->pluck('quest_id');
+            
+            $query->whereNotIn('id', $startedQuestIds)
+                  ->where('is_active', true)
+                  ->where(function($q) use ($user) {
+                      // Проверка уровня
+                      $q->whereNull('min_level')
+                        ->orWhere('min_level', '<=', $user->level);
+                  });
+            
+            $quests = $query->paginate(12);
+            break;
+            
+        default:
+            $quests = collect();
     }
+    
+    return view('quests.my', compact('quests', 'status', 'userStats'));
+}
 
     // Лидерборд
     public function leaderboard(Request $request)

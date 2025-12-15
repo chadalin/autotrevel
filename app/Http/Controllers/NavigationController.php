@@ -72,21 +72,39 @@ class NavigationController extends Controller
     /**
      * Показать страницу навигации
      */
-    public function navigate(TravelRoute $route)
-    {
-        // Получаем активную сессию пользователя для этого маршрута
-        $session = RouteSession::where('user_id', Auth::id())
-            ->where('route_id', $route->id)
-            ->whereIn('status', ['active', 'paused'])
-            ->first();
-            
-        if (!$session) {
-            return redirect()->route('routes.show', $route)
-                ->with('error', 'У вас нет активной сессии навигации для этого маршрута');
-        }
-        
-        return $this->show($session);
+    public function navigate(RouteSession $session)
+{
+    // Проверка прав доступа
+  //  if ($session->user_id !== Auth::id()) {
+     //   abort(403);
+    //}
+    
+    $route = $session->route;
+    
+    // ПРАВИЛЬНО: получаем чекпоинты маршрута, а не сессии
+    $checkpoints = $route->checkpoints()->orderBy('order')->get();
+    
+    // Определяем текущий чекпоинт
+    $currentCheckpoint = null;
+    if ($session->current_checkpoint_id) {
+        $currentCheckpoint = RouteCheckpoint::find($session->current_checkpoint_id);
+    } else {
+        // Если нет текущего чекпоинта, берем первый
+        $currentCheckpoint = $checkpoints->first();
     }
+    
+    // Получаем посещенные чекпоинты
+    $visitedCheckpoints = json_decode($session->checkpoints_visited ?? '[]', true);
+    
+    return view('navigation.index', [
+        'session' => $session,
+        'route' => $route,
+        'checkpoints' => $checkpoints,
+        'currentCheckpoint' => $currentCheckpoint,
+        'visitedCheckpoints' => $visitedCheckpoints,
+        'progress' => $this->calculateProgress($checkpoints->count(), count($visitedCheckpoints)),
+    ]);
+}
     
     /**
      * Показать навигацию по сессии

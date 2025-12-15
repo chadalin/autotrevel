@@ -145,6 +145,30 @@
                                 </div>
                             </div>
                             
+                            <!-- Кнопка перехода к первому незавершенному маршруту -->
+                            @php
+                                $incompleteRoute = null;
+                                if (Auth::check() && $userProgress['status'] == 'in_progress') {
+                                    $completedData = Auth::user()->userQuests()
+                                        ->where('quest_id', $quest->id)
+                                        ->first()
+                                        ->completed_data ?? [];
+                                    
+                                    $incompleteRoute = $quest->routes->first(function($route) use ($completedData) {
+                                        return !in_array($route->id, $completedData);
+                                    });
+                                }
+                            @endphp
+                            
+                            @if($incompleteRoute)
+                                <div class="mb-3">
+                                    <a href="{{ route('routes.show', $incompleteRoute) }}" 
+                                       class="block w-full bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white font-bold py-3 rounded-lg text-center transition duration-300 mb-2">
+                                        <i class="fas fa-map-marked-alt mr-2"></i> Перейти к маршруту
+                                    </a>
+                                </div>
+                            @endif
+                            
                             <div class="space-y-2">
                                 <a href="{{ route('quests.my') }}" class="block w-full bg-white/20 hover:bg-white/30 text-white font-medium py-2 rounded-lg text-center transition duration-300">
                                     <i class="fas fa-tasks mr-2"></i> Мои квесты
@@ -204,7 +228,7 @@
                             @foreach($quest->conditions as $condition)
                                 <div class="flex items-start">
                                     <i class="fas fa-check text-green-500 mt-1 mr-3"></i>
-                                    <span class="text-gray-700">{{ $this->formatCondition($condition) }}</span>
+                                    <span class="text-gray-700">{{ $condition }}</span>
                                 </div>
                             @endforeach
                         </div>
@@ -215,47 +239,65 @@
             <!-- Маршруты квеста -->
             @if($quest->routes->count() > 0)
                 <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
-                    <h2 class="text-2xl font-bold text-gray-800 mb-4">
-                        Маршруты квеста ({{ $quest->routes->count() }})
-                    </h2>
+                    <div class="flex items-center justify-between mb-6">
+                        <h2 class="text-2xl font-bold text-gray-800">
+                            Маршруты квеста ({{ $quest->routes->count() }})
+                        </h2>
+                        
+                        @if(Auth::check() && $userProgress['status'] == 'in_progress')
+                            <div class="text-sm font-medium text-gray-600">
+                                Прогресс: {{ $userProgress['progress'] }}/{{ $userProgress['progress_target'] }}
+                            </div>
+                        @endif
+                    </div>
                     
                     <div class="space-y-4">
                         @foreach($quest->routes as $route)
-                            <div class="border border-gray-200 rounded-lg p-4 hover:border-orange-300 hover:shadow-md transition duration-300">
+                            @php
+                                $isCompleted = false;
+                                if (Auth::check() && $userProgress['status'] == 'in_progress') {
+                                    $completedData = Auth::user()->userQuests()
+                                        ->where('quest_id', $quest->id)
+                                        ->first()
+                                        ->completed_data ?? [];
+                                    $isCompleted = in_array($route->id, $completedData);
+                                }
+                            @endphp
+                            
+                            <div class="border border-gray-200 rounded-lg p-4 hover:border-orange-300 hover:shadow-md transition duration-300 {{ $isCompleted ? 'bg-green-50 border-green-200' : '' }}">
                                 <div class="flex items-start">
                                     <!-- Номер маршрута -->
-                                    <div class="w-10 h-10 rounded-lg bg-gradient-to-r from-orange-500 to-red-500 flex items-center justify-center text-white font-bold mr-4 flex-shrink-0">
-                                        {{ $loop->iteration }}
+                                    <div class="w-10 h-10 rounded-lg {{ $isCompleted ? 'bg-green-500' : 'bg-gradient-to-r from-orange-500 to-red-500' }} flex items-center justify-center text-white font-bold mr-4 flex-shrink-0">
+                                        @if($isCompleted)
+                                            <i class="fas fa-check"></i>
+                                        @else
+                                            {{ $loop->iteration }}
+                                        @endif
                                     </div>
                                     
                                     <div class="flex-1">
                                         <div class="flex items-start justify-between mb-2">
                                             <div>
-                                                <h3 class="font-bold text-lg text-gray-800">
+                                                <h3 class="font-bold text-lg text-gray-800 mb-1">
                                                     <a href="{{ route('routes.show', $route) }}" class="hover:text-orange-600">
                                                         {{ $route->title }}
                                                     </a>
                                                 </h3>
-                                                <div class="flex items-center mt-1">
+                                                <div class="flex items-center">
                                                     <span class="px-2 py-1 text-xs rounded {{ $route->difficulty_color }} mr-2">
                                                         {{ $route->difficulty_label }}
                                                     </span>
                                                     <span class="text-sm text-gray-600">
-                                                        <i class="fas fa-road mr-1"></i>{{ $route->length_km }} км
+                                                        <i class="fas fa-road mr-1"></i>{{ $route->length_km ?? '?' }} км
                                                     </span>
                                                     <span class="text-sm text-gray-600 ml-3">
-                                                        <i class="fas fa-clock mr-1"></i>{{ $route->duration_formatted }}
+                                                        <i class="fas fa-clock mr-1"></i>{{ $route->duration_formatted ?? '?' }}
                                                     </span>
                                                 </div>
                                             </div>
                                             
                                             <!-- Статус выполнения -->
                                             @if(Auth::check() && $userProgress['status'] == 'in_progress')
-                                                @php
-                                                    $completedData = $userProgress['status'] == 'in_progress' ? 
-                                                        (Auth::user()->userQuests()->where('quest_id', $quest->id)->first()->completed_data ?? []) : [];
-                                                    $isCompleted = in_array($route->id, $completedData);
-                                                @endphp
                                                 <div class="ml-4">
                                                     @if($isCompleted)
                                                         <span class="px-3 py-1 rounded-full text-sm font-bold bg-green-100 text-green-800">
@@ -270,30 +312,49 @@
                                             @endif
                                         </div>
                                         
-                                        <p class="text-gray-600 mb-3">{{ $route->short_description ?? Str::limit($route->description, 150) }}</p>
+                                        @if($route->short_description || $route->description)
+                                            <p class="text-gray-600 mb-3">{{ $route->short_description ?? Str::limit($route->description, 150) }}</p>
+                                        @endif
                                         
                                         <!-- Теги маршрута -->
-                                        @if($route->tags->count() > 0)
-                                            <div class="flex flex-wrap gap-2">
+                                        @if($route->tags && $route->tags->count() > 0)
+                                            <div class="flex flex-wrap gap-2 mb-3">
                                                 @foreach($route->tags->take(3) as $tag)
-                                                    <span class="px-2 py-1 text-xs rounded-full" style="background-color: {{ $tag->color }}20; color: {{ $tag->color }};">
+                                                    <span class="px-2 py-1 text-xs rounded-full" style="background-color: {{ $tag->color ?? '#6B7280' }}20; color: {{ $tag->color ?? '#6B7280' }};">
                                                         #{{ $tag->name }}
                                                     </span>
                                                 @endforeach
                                             </div>
                                         @endif
                                         
-                                        <!-- Кнопка "Я проехал" -->
-                                        @if(Auth::check() && $userProgress['status'] == 'in_progress' && !$isCompleted)
-                                            <div class="mt-4 pt-4 border-t border-gray-100">
+                                        <!-- Кнопки действий -->
+                                        <div class="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-100">
+                                            <!-- Основная кнопка перехода -->
+                                            <a href="{{ route('routes.show', $route) }}" 
+                                               class="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition duration-300 inline-flex items-center">
+                                                <i class="fas fa-map-marked-alt mr-2"></i> Открыть маршрут
+                                            </a>
+                                            
+                                            <!-- Кнопка навигации -->
+                                            @if(Auth::check() && $userProgress['status'] == 'in_progress' && !$isCompleted)
+                                                <a href="{{ route('routes.navigate', $route) }}" 
+                                                   class="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition duration-300 inline-flex items-center">
+                                                    <i class="fas fa-play-circle mr-2"></i> Начать навигацию
+                                                </a>
+                                                
+                                                <!-- Кнопка "Я проехал" -->
                                                 <button type="button" 
                                                         data-route-id="{{ $route->id }}"
                                                         data-quest-id="{{ $quest->id }}"
-                                                        class="mark-route-completed bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition duration-300">
+                                                        class="mark-route-completed bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition duration-300 inline-flex items-center">
                                                     <i class="fas fa-check-circle mr-2"></i> Отметить как пройденный
                                                 </button>
-                                            </div>
-                                        @endif
+                                            @elseif(Auth::check() && $isCompleted)
+                                                <span class="px-4 py-2 bg-green-100 text-green-800 rounded-lg text-sm font-medium inline-flex items-center">
+                                                    <i class="fas fa-check-circle mr-2"></i> Уже пройдено
+                                                </span>
+                                            @endif
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -437,6 +498,49 @@
         
         <!-- Правая колонка -->
         <div class="space-y-6">
+            <!-- Прогресс квеста -->
+            @if(Auth::check() && $userProgress['status'] == 'in_progress')
+                <div class="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl shadow-lg p-6">
+                    <h3 class="font-bold text-lg text-gray-800 mb-4">Ваш прогресс</h3>
+                    
+                    <div class="text-center mb-6">
+                        <div class="text-4xl font-bold text-blue-600 mb-2">{{ $userProgress['progress_percentage'] }}%</div>
+                        <div class="text-gray-600">{{ $userProgress['progress'] }}/{{ $userProgress['progress_target'] }} маршрутов</div>
+                    </div>
+                    
+                    <div class="w-full bg-gray-200 rounded-full h-3 mb-6">
+                        <div class="bg-gradient-to-r from-blue-500 to-cyan-600 h-3 rounded-full transition-all duration-500" 
+                             style="width: {{ $userProgress['progress_percentage'] }}%"></div>
+                    </div>
+                    
+                    <!-- Следующий шаг -->
+                    @php
+                        $nextRoute = null;
+                        if (Auth::check() && $userProgress['status'] == 'in_progress') {
+                            $completedData = Auth::user()->userQuests()
+                                ->where('quest_id', $quest->id)
+                                ->first()
+                                ->completed_data ?? [];
+                            
+                            $nextRoute = $quest->routes->first(function($route) use ($completedData) {
+                                return !in_array($route->id, $completedData);
+                            });
+                        }
+                    @endphp
+                    
+                    @if($nextRoute)
+                        <div class="bg-white rounded-lg p-4 border border-blue-200">
+                            <div class="text-sm font-medium text-gray-600 mb-2">Следующий маршрут:</div>
+                            <div class="font-bold text-gray-800 truncate mb-2">{{ $nextRoute->title }}</div>
+                            <a href="{{ route('routes.show', $nextRoute) }}" 
+                               class="block w-full bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white text-center py-2 rounded-lg font-medium text-sm transition duration-300">
+                                <i class="fas fa-play-circle mr-2"></i> Перейти к маршруту
+                            </a>
+                        </div>
+                    @endif
+                </div>
+            @endif
+            
             <!-- Статистика квеста -->
             <div class="bg-white rounded-xl shadow-lg p-6">
                 <h3 class="font-bold text-lg text-gray-800 mb-4">Статистика квеста</h3>
@@ -483,36 +587,6 @@
                 </div>
             </div>
             
-            <!-- Популярные маршруты в квесте -->
-            @if(isset($statistics['popular_routes']) && $statistics['popular_routes']->count() > 0)
-                <div class="bg-white rounded-xl shadow-lg p-6">
-                    <h3 class="font-bold text-lg text-gray-800 mb-4">Популярные маршруты</h3>
-                    
-                    <div class="space-y-3">
-                        @foreach($statistics['popular_routes'] as $route)
-                            <a href="{{ route('routes.show', $route) }}" class="block group">
-                                <div class="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 transition duration-300">
-                                    @if($route->cover_image)
-                                        <div class="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0">
-                                            <img src="{{ Storage::url($route->cover_image) }}" alt="{{ $route->title }}" 
-                                                 class="w-full h-full object-cover group-hover:scale-110 transition duration-300">
-                                        </div>
-                                    @endif
-                                    <div class="flex-1 min-w-0">
-                                        <h4 class="font-medium text-gray-800 truncate group-hover:text-orange-600">{{ $route->title }}</h4>
-                                        <div class="flex items-center mt-1">
-                                            <span class="text-xs text-gray-600">
-                                                <i class="fas fa-users mr-1"></i>{{ $route->user_quests_count }} прошли
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </a>
-                        @endforeach
-                    </div>
-                </div>
-            @endif
-            
             <!-- Похожие квесты -->
             @if($similarQuests->count() > 0)
                 <div class="bg-white rounded-xl shadow-lg p-6">
@@ -546,13 +620,13 @@
                 <h3 class="font-bold text-lg text-gray-800 mb-4">Полезные ссылки</h3>
                 
                 <div class="space-y-3">
-                    <a href="{{ route('quests.leaderboard') }}" 
+                    <a href="{{ route('quests.my') }}" 
                        class="flex items-center justify-between p-3 bg-white rounded-lg hover:shadow-md transition duration-300">
                         <div class="flex items-center">
-                            <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center mr-3">
-                                <i class="fas fa-trophy text-blue-600"></i>
+                            <div class="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center mr-3">
+                                <i class="fas fa-tasks text-orange-600"></i>
                             </div>
-                            <span class="font-medium text-gray-800">Таблица лидеров</span>
+                            <span class="font-medium text-gray-800">Мои квесты</span>
                         </div>
                         <i class="fas fa-chevron-right text-gray-400"></i>
                     </a>
@@ -639,25 +713,19 @@ $(document).ready(function() {
             contentType: false,
             success: function(response) {
                 if (response.success) {
-                    showNotification('Прогресс обновлён!', 'success');
+                    showNotification('Прогресс обновлён! Маршрут отмечен как пройденный.', 'success');
                     setTimeout(() => {
                         location.reload();
                     }, 1500);
                 } else {
-                    showNotification(response.message || 'Ошибка', 'error');
+                    showNotification(response.message || 'Ошибка при отправке', 'error');
                 }
             },
             error: function(xhr) {
-                showNotification('Ошибка сервера', 'error');
+                showNotification('Ошибка сервера. Попробуйте позже.', 'error');
             }
         });
     });
-    
-    // Форматирование условий квеста
-    function formatCondition(condition) {
-        // Вспомогательная функция для отображения условий
-        return condition;
-    }
     
     // Уведомления
     function showNotification(message, type = 'info') {
@@ -683,4 +751,21 @@ $(document).ready(function() {
     }
 });
 </script>
+
+<style>
+.animate-slide-up {
+    animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+</style>
 @endpush
