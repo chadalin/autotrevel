@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Mail;
 use App\Mail\VerificationCodeMail;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class EmailVerificationController extends Controller
 {
@@ -19,6 +20,8 @@ class EmailVerificationController extends Controller
 
     public function sendCode(Request $request)
     {
+        \Log::info('=== НАЧАЛО ОТПРАВКИ КОДА ===');
+        
         $validator = Validator::make($request->all(), [
             'email' => 'required|email|max:255',
         ]);
@@ -32,32 +35,64 @@ class EmailVerificationController extends Controller
 
         $email = $request->email;
         
-        // Ищем пользователя или создаём нового
-        $user = User::firstOrCreate(
-            ['email' => $email],
-            [
-                'name' => explode('@', $email)[0],
-                'is_verified' => false,
-            ]
-        );
-
-        // Генерируем и отправляем код
-        $code = $user->generateVerificationCode();
-
         try {
-            Mail::to($user->email)->send(new VerificationCodeMail($code));
+            \Log::info('Обработка email: ' . $email);
             
+            // Ищем пользователя или создаём нового
+            $user = User::firstOrCreate(
+                ['email' => $email],
+                [
+                    'name' => explode('@', $email)[0],
+                    'is_verified' => false,
+                    'level' => 1,
+                    'experience' => 0,
+                    'role' => 'user',
+                ]
+            );
+
+            \Log::info('Пользователь найден/создан: ' . $user->id);
+            
+            // Генерируем код
+            $code = $user->generateVerificationCode();
+            
+            \Log::info('Код сгенерирован: ' . $code);
+            
+            // Сохраняем email в сессии
             session(['verification_email' => $email]);
+            
+            // Отправляем письмо
+            \Log::info('Попытка отправки письма на: ' . $email);
+            
+            Mail::to($email)->send(new VerificationCodeMail($code));
+            
+            \Log::info('Письмо отправлено успешно');
             
             return response()->json([
                 'success' => true,
-                'message' => 'Код отправлен на вашу почту'
+                'message' => 'Код отправлен на вашу почту! Проверьте папку "Входящие" и "Спам".',
+                'email' => $email,
+                'user_id' => $user->id
             ]);
+            
         } catch (\Exception $e) {
-            return response()->json([
+            \Log::error('ОШИБКА отправки кода: ' . $e->getMessage());
+            \Log::error('Trace: ' . $e->getTraceAsString());
+            
+            // Если ошибка SMTP, показываем код для тестирования
+            $debugInfo = [
                 'success' => false,
-                'message' => 'Ошибка при отправке кода'
-            ], 500);
+                'message' => 'Ошибка при отправке письма. Попробуйте позже.',
+                'email' => $email ?? null
+            ];
+            
+            // В режиме отладки показываем больше информации
+            if (config('app.debug')) {
+                $debugInfo['debug_error'] = $e->getMessage();
+                $debugInfo['debug_code'] = $code ?? 'не сгенерирован';
+                $debugInfo['debug_user'] = $user->id ?? 'не создан';
+            }
+            
+            return response()->json($debugInfo, 500);
         }
     }
 
@@ -79,7 +114,7 @@ class EmailVerificationController extends Controller
         if (!$email) {
             return response()->json([
                 'success' => false,
-                'message' => 'Сессия истекла'
+                'message' => 'Сессия истекла. Пожалуйста, запросите код заново.'
             ], 400);
         }
 
@@ -96,9 +131,14 @@ class EmailVerificationController extends Controller
             Auth::login($user);
             session()->forget('verification_email');
             
+            \Log::info('Успешная авторизация пользователя', [
+                'user_id' => $user->id,
+                'email' => $email
+            ]);
+            
             return response()->json([
                 'success' => true,
-                'message' => 'Успешная авторизация',
+                'message' => 'Успешная авторизация!',
                 'redirect' => route('home')
             ]);
         }

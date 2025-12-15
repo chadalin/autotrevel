@@ -9,8 +9,10 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\CommentController;
-
+use App\Http\Controllers\TestController;
+use App\Http\Controllers\DatabaseSchemaController;
 use App\Http\Controllers\ReviewController;
+use App\Http\Controllers\NavigationController;
 // Главная страница
 Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::get('/search', [HomeController::class, 'search'])->name('search');
@@ -23,9 +25,27 @@ Route::post('/verify-code', [EmailVerificationController::class, 'verifyCode'])-
 Route::post('/logout', [EmailVerificationController::class, 'logout'])->name('logout');
 
 // Маршруты
-Route::resource('routes', RouteController::class)->except(['create', 'store', 'edit', 'update', 'destroy']);
-Route::get('/routes/{route}/map-data', [RouteController::class, 'mapData'])->name('routes.map.data');
-Route::get('/routes/{route}/export/gpx', [RouteController::class, 'exportGpx'])->name('routes.export.gpx');
+// Маршруты для работы с маршрутами
+Route::prefix('routes')->name('routes.')->group(function () {
+    // Публичные маршруты
+    Route::get('/', [RouteController::class, 'index'])->name('index');
+    Route::get('/create', [RouteController::class, 'create'])->name('create');
+    Route::get('/{route}', [RouteController::class, 'show'])->name('show');
+    Route::get('/{route}/export/gpx', [RouteController::class, 'exportGpx'])->name('export.gpx');
+    
+    // Маршруты требующие аутентификации
+    Route::middleware(['auth'])->group(function () {
+        Route::post('/', [RouteController::class, 'store'])->name('store');
+        Route::get('/{route}/edit', [RouteController::class, 'edit'])->name('edit');
+        Route::put('/{route}', [RouteController::class, 'update'])->name('update');
+        Route::delete('/{route}', [RouteController::class, 'destroy'])->name('destroy');
+        Route::post('/{route}/save', [RouteController::class, 'save'])->name('save');
+        
+        // Маршрут для подтверждения прохождения
+        Route::get('/{route}/complete', [RouteController::class, 'complete'])->name('complete');
+    });
+});
+   
 
 // Отзывы
 Route::post('/routes/{route}/reviews', [ReviewController::class, 'store'])->name('reviews.store');
@@ -39,7 +59,6 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/routes', [RouteController::class, 'store'])->name('routes.store');
     Route::get('/routes/{route}/edit', [RouteController::class, 'edit'])->name('routes.edit');
     Route::put('/routes/{route}', [RouteController::class, 'update'])->name('routes.update');
-    Route::delete('/routes/{route}', [RouteController::class, 'destroy'])->name('routes.destroy');
     
     // Сохранение маршрутов
     Route::post('/routes/{route}/save', [RouteController::class, 'save'])->name('routes.save');
@@ -66,6 +85,8 @@ Route::prefix('quests')->name('quests.')->group(function () {
         Route::post('/{quest}/start', [QuestController::class, 'start'])->name('start');
         Route::post('/{quest}/progress', [QuestController::class, 'updateProgress'])->name('progress.update');
         Route::post('/{quest}/cancel', [QuestController::class, 'cancel'])->name('cancel');
+        Route::post('/complete', [QuestController::class, 'completeRoute'])->name('complete-route');
+        Route::delete('/{userQuest}/abandon', [QuestController::class, 'abandon'])->name('abandon');
     });
     
     // Админ маршруты
@@ -133,3 +154,107 @@ Route::get('/check-fk', function() {
     
     return view('debug.fk', ['results' => $results]);
 });
+
+
+Route::get('/test-email', function() {
+    try {
+        // Проверяем настройки
+        $config = [
+            'driver' => config('mail.default'),
+            'host' => config('mail.mailers.smtp.host'),
+            'port' => config('mail.mailers.smtp.port'),
+            'encryption' => config('mail.mailers.smtp.encryption'),
+            'username' => config('mail.mailers.smtp.username'),
+        ];
+        
+        Log::info('Настройки почты:', $config);
+        
+        // Пробуем отправить тестовое письмо
+        Mail::raw('Тестовое письмо от AutoRuta', function($message) {
+            $message->to('test@example.com') // Замените на свой email
+                    ->subject('Тест отправки почты');
+        });
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Письмо отправлено!',
+            'config' => $config
+        ]);
+        
+    } catch (\Exception $e) {
+        Log::error('Тест почты провален', [
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+        
+        return response()->json([
+            'success' => false,
+            'message' => 'Ошибка: ' . $e->getMessage(),
+            'config' => config('mail.mailers.smtp')
+        ], 500);
+    }
+});
+
+
+// Тестовые маршруты для авторизации
+Route::prefix('test-auth')->name('test.')->group(function () {
+    Route::get('/login', [\App\Http\Controllers\Auth\TestLoginController::class, 'showLoginForm'])->name('login.form');
+    Route::post('/login', [\App\Http\Controllers\Auth\TestLoginController::class, 'login'])->name('login');
+    Route::get('/direct-login/{email}', [\App\Http\Controllers\Auth\TestLoginController::class, 'directLogin'])->name('direct-login');
+    Route::post('/verify-code', [\App\Http\Controllers\Auth\TestLoginController::class, 'verifyCode'])->name('verify-code');
+});
+
+
+// Тестовый маршрут для проверки почты
+Route::get('/test-mail', function () {
+    try {
+        $code = rand(100000, 999999);
+        
+        \Mail::raw('Тестовое письмо. Код: ' . $code, function ($message) {
+            $message->to('dgimmibos@yandex.ru')
+                    ->subject('Тест отправки почты');
+        });
+        
+        return 'Письмо отправлено! Код: ' . $code;
+        
+    } catch (\Exception $e) {
+        return 'Ошибка: ' . $e->getMessage();
+    }
+});
+
+
+// Тестовые маршруты
+Route::get('/test-csrf-page', [TestController::class, 'showTestPage']);
+Route::post('/test-csrf', [TestController::class, 'testCsrf']);
+
+
+
+
+// Маршруты для навигации
+Route::middleware(['auth'])->group(function () {
+    // Навигация по маршруту
+    Route::post('/routes/{route}/navigation/start', [NavigationController::class, 'start'])->name('routes.navigation.start');
+    Route::get('/routes/{route}/navigate', [NavigationController::class, 'navigate'])->name('routes.navigate');
+    Route::get('/routes/{session}/navigation', [NavigationController::class, 'show'])->name('routes.navigation.show');
+    
+    // Управление сессией
+    Route::post('/navigation/sessions/{session}/pause', [NavigationController::class, 'pause'])->name('routes.navigation.pause');
+    Route::post('/navigation/sessions/{session}/resume', [NavigationController::class, 'resume'])->name('routes.navigation.resume');
+    Route::post('/navigation/sessions/{session}/complete', [NavigationController::class, 'complete'])->name('routes.navigation.complete');
+    
+    // Контрольные точки
+    Route::post('/navigation/checkpoint/{checkpoint}/arrive', [NavigationController::class, 'arrive'])->name('routes.navigation.checkpoint.arrive');
+    Route::post('/navigation/checkpoint/{checkpoint}/skip', [NavigationController::class, 'skip'])->name('routes.navigation.checkpoint.skip');
+    Route::get('/navigation/checkpoint/{checkpoint}/arrival-info', [NavigationController::class, 'arrivalInfo'])->name('routes.navigation.checkpoint.arrival-info');
+    
+    // Фотографии и комментарии
+    Route::post('/navigation/checkpoint/{checkpoint}/add-photo', [NavigationController::class, 'addPhoto'])->name('routes.navigation.checkpoint.add-photo');
+    Route::post('/navigation/checkpoint/{checkpoint}/add-comment', [NavigationController::class, 'addComment'])->name('routes.navigation.checkpoint.add-comment');
+});
+
+Route::get('/database-schema', [DatabaseSchemaController::class, 'index']);
+
+// Тестовый маршрут
+Route::post('/test-route/create', [NavigationController::class, 'createTestRoute'])
+    ->name('test.route.create')
+    ->middleware('auth');

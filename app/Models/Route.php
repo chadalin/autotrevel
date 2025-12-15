@@ -191,4 +191,42 @@ public function userQuests()
     return $this->belongsToMany(Quest::class, 'quest_route', 'route_id', 'quest_id')
         ->withPivot('order', 'is_required', 'verification_data');
 }
+
+public function getDurationHoursAttribute()
+{
+    return $this->attributes['duration_hours'] ?? ceil($this->duration_minutes / 60);
+}
+public function completions()
+{
+    return $this->hasMany(RouteCompletion::class);
+}
+
+// Также добавьте отношение для пользователя, прошедшего маршрут
+public function completedByUsers()
+{
+    return $this->belongsToMany(User::class, 'route_completions')
+                ->withPivot(['photo_path', 'completed_at'])
+                ->withTimestamps();
+}
+
+// Проверка, прошел ли конкретный пользователь маршрут
+public function isCompletedByUser($userId = null)
+{
+    if (!$userId && auth()->check()) {
+        $userId = auth()->id();
+    }
+    
+    if (!$userId) {
+        return false;
+    }
+    
+    return $this->completions()->where('user_id', $userId)->exists();
+}
+
+// Количество прохождений
+public function getCompletionsCountAttribute()
+{
+    return $this->completions()->count();
+}
+
 }

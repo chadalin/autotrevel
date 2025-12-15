@@ -2,385 +2,490 @@
 
 @section('title', 'Вход - AutoRuta')
 
+@push('styles')
+<style>
+    .login-container {
+        min-height: 80vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .code-inputs {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        margin: 20px 0;
+    }
+    
+    .code-input {
+        width: 50px;
+        height: 60px;
+        text-align: center;
+        font-size: 24px;
+        font-weight: bold;
+        border: 2px solid #d1d5db;
+        border-radius: 8px;
+        background: white;
+        transition: all 0.3s;
+    }
+    
+    .code-input:focus {
+        border-color: #f97316;
+        box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+        outline: none;
+    }
+    
+    .code-input.filled {
+        border-color: #10b981;
+        background-color: #f0fdf4;
+    }
+    
+    .timer {
+        font-size: 14px;
+        color: #6b7280;
+        margin-top: 10px;
+    }
+    
+    .timer.expired {
+        color: #ef4444;
+    }
+</style>
+@endpush
+
 @section('content')
-<div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-blue-50 py-12 px-4 sm:px-6 lg:px-8">
-    <div class="max-w-md w-full space-y-8">
-        <div>
-            <div class="flex justify-center">
-                <a href="{{ route('home') }}" class="flex items-center space-x-2">
-                    <div class="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg flex items-center justify-center">
-                        <i class="fas fa-route text-white text-xl"></i>
-                    </div>
-                    <span class="text-gray-900 font-bold text-2xl tracking-tight">AutoRuta</span>
-                </a>
+<div class="login-container py-12">
+    <div class="max-w-md w-full mx-auto">
+        <!-- Логотип -->
+        <div class="text-center mb-10">
+            <div class="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-orange-500 to-red-600 rounded-2xl mb-4">
+                <i class="fas fa-route text-white text-2xl"></i>
             </div>
-            <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
-                Вход в аккаунт
-            </h2>
-            <p class="mt-2 text-center text-sm text-gray-600">
-                Введите email для получения кода подтверждения
-            </p>
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Вход в AutoRuta</h1>
+            <p class="text-gray-600">Введите email для получения кода подтверждения</p>
         </div>
         
-        <div class="mt-8 bg-white py-8 px-4 shadow-lg rounded-xl sm:px-10">
-            <!-- Форма ввода email -->
-            <div id="email-form">
-                <form id="send-code-form" class="space-y-6">
-                    <div>
-                        <label for="email" class="block text-sm font-medium text-gray-700">
+        <!-- Форма входа -->
+        <div class="bg-white rounded-2xl shadow-xl p-8">
+            <!-- Шаг 1: Ввод email -->
+            <div id="step-email" class="transition-all duration-300">
+                <h2 class="text-xl font-bold text-gray-800 mb-6">Введите ваш email</h2>
+                
+                <form id="email-form">
+                    @csrf <!-- CSRF токен -->
+                    
+                    <div class="mb-6">
+                        <label for="email" class="block text-sm font-medium text-gray-700 mb-2">
                             Email адрес
                         </label>
-                        <div class="mt-1 relative">
-                            <input id="email" name="email" type="email" autocomplete="email" required
-                                   class="appearance-none block w-full px-3 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                                   placeholder="your@email.com">
-                            <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <i class="fas fa-envelope text-gray-400"></i>
                             </div>
+                            <input type="email" 
+                                   id="email" 
+                                   name="email"
+                                   class="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition duration-300"
+                                   placeholder="ваш@email.com"
+                                   required
+                                   autocomplete="email"
+                                   autofocus>
                         </div>
-                        <div id="email-error" class="mt-2 text-sm text-red-600 hidden"></div>
+                        <p class="mt-2 text-sm text-gray-500">
+                            На этот email будет отправлен код подтверждения
+                        </p>
                     </div>
-
-                    <div>
-                        <button type="submit" id="send-code-btn"
-                                class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition duration-300">
-                            <span id="send-code-text">Отправить код</span>
-                            <div id="send-code-spinner" class="ml-2 hidden">
-                                <i class="fas fa-spinner fa-spin"></i>
-                            </div>
-                        </button>
-                    </div>
+                    
+                    <button type="submit" 
+                            id="send-code-btn"
+                            class="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 shadow-md hover:shadow-lg flex items-center justify-center">
+                        <i class="fas fa-paper-plane mr-2"></i>
+                        <span>Получить код</span>
+                    </button>
                 </form>
-                
-                <div class="mt-6">
-                    <div class="relative">
-                        <div class="absolute inset-0 flex items-center">
-                            <div class="w-full border-t border-gray-300"></div>
-                        </div>
-                        <div class="relative flex justify-center text-sm">
-                            <span class="px-2 bg-white text-gray-500">
-                                Или вернуться на главную
-                            </span>
-                        </div>
-                    </div>
-
-                    <div class="mt-6">
-                        <a href="{{ route('home') }}" class="w-full flex justify-center py-3 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500">
-                            <i class="fas fa-arrow-left mr-2"></i> На главную
-                        </a>
-                    </div>
-                </div>
             </div>
             
-            <!-- Форма ввода кода -->
-            <div id="code-form" class="space-y-6 hidden">
-                <div class="text-center">
-                    <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100">
-                        <i class="fas fa-mail-bulk text-green-600 text-xl"></i>
-                    </div>
-                    <h3 class="mt-3 text-lg font-medium text-gray-900">Проверьте вашу почту</h3>
-                    <p class="mt-2 text-sm text-gray-500">
-                        Мы отправили 6-значный код на <span id="user-email" class="font-semibold"></span>
-                    </p>
-                    <p class="mt-1 text-xs text-gray-500">
-                        Код действителен в течение 15 минут
-                    </p>
-                </div>
+            <!-- Шаг 2: Ввод кода -->
+            <div id="step-code" class="hidden transition-all duration-300">
+                <h2 class="text-xl font-bold text-gray-800 mb-6">Введите код подтверждения</h2>
+                <p class="text-gray-600 mb-6">
+                    Код отправлен на <span id="user-email" class="font-semibold text-orange-600"></span>
+                </p>
                 
-                <form id="verify-code-form" class="space-y-6">
-                    <div>
-                        <label for="code" class="block text-sm font-medium text-gray-700">
-                            Код подтверждения
-                        </label>
-                        <div class="mt-4">
-                            <div class="flex justify-center space-x-3">
-                                <input type="text" name="code1" maxlength="1" 
-                                       class="w-14 h-14 text-center text-2xl font-bold border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:ring-2 focus:ring-orange-200 outline-none transition"
-                                       oninput="moveToNext(this, 'code2')">
-                                <input type="text" name="code2" maxlength="1" 
-                                       class="w-14 h-14 text-center text-2xl font-bold border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:ring-2 focus:ring-orange-200 outline-none transition"
-                                       oninput="moveToNext(this, 'code3')">
-                                <input type="text" name="code3" maxlength="1" 
-                                       class="w-14 h-14 text-center text-2xl font-bold border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:ring-2 focus:ring-orange-200 outline-none transition"
-                                       oninput="moveToNext(this, 'code4')">
-                                <input type="text" name="code4" maxlength="1" 
-                                       class="w-14 h-14 text-center text-2xl font-bold border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:ring-2 focus:ring-orange-200 outline-none transition"
-                                       oninput="moveToNext(this, 'code5')">
-                                <input type="text" name="code5" maxlength="1" 
-                                       class="w-14 h-14 text-center text-2xl font-bold border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:ring-2 focus:ring-orange-200 outline-none transition"
-                                       oninput="moveToNext(this, 'code6')">
-                                <input type="text" name="code6" maxlength="1" 
-                                       class="w-14 h-14 text-center text-2xl font-bold border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:ring-2 focus:ring-orange-200 outline-none transition">
-                            </div>
-                            <input type="hidden" id="full-code" name="code">
-                            <div id="code-error" class="mt-2 text-sm text-red-600 text-center hidden"></div>
+                <form id="code-form">
+                    @csrf <!-- CSRF токен для проверки кода -->
+                    
+                    <div class="mb-6">
+                        <div class="code-inputs">
+                            <input type="text" maxlength="1" class="code-input" data-index="1" inputmode="numeric">
+                            <input type="text" maxlength="1" class="code-input" data-index="2" inputmode="numeric">
+                            <input type="text" maxlength="1" class="code-input" data-index="3" inputmode="numeric">
+                            <input type="text" maxlength="1" class="code-input" data-index="4" inputmode="numeric">
+                            <input type="text" maxlength="1" class="code-input" data-index="5" inputmode="numeric">
+                            <input type="text" maxlength="1" class="code-input" data-index="6" inputmode="numeric">
+                        </div>
+                        <input type="hidden" id="full-code" name="code">
+                        
+                        <div class="timer text-center">
+                            <span id="timer">02:00</span>
                         </div>
                     </div>
                     
-                    <div class="text-sm text-center">
-                        <a href="#" id="resend-code" class="font-medium text-orange-600 hover:text-orange-500">
-                            Отправить код повторно
-                        </a>
-                        <span id="timer" class="text-gray-500 ml-2">(1:00)</span>
-                    </div>
-
                     <div class="flex space-x-3">
-                        <button type="button" id="back-to-email"
-                                class="flex-1 py-3 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500">
-                            <i class="fas fa-arrow-left mr-2"></i> Назад
+                        <button type="button" 
+                                id="resend-code-btn"
+                                class="flex-1 border border-gray-300 text-gray-700 font-medium py-3 px-4 rounded-lg hover:bg-gray-50 transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                                disabled>
+                            <i class="fas fa-redo mr-2"></i>
+                            <span>Отправить снова</span>
                         </button>
-                        <button type="submit" id="verify-code-btn"
-                                class="flex-1 flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500">
-                            <span id="verify-code-text">Подтвердить</span>
-                            <div id="verify-code-spinner" class="ml-2 hidden">
-                                <i class="fas fa-spinner fa-spin"></i>
-                            </div>
+                        
+                        <button type="submit" 
+                                id="verify-code-btn"
+                                class="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <i class="fas fa-check mr-2"></i>
+                            <span>Подтвердить</span>
                         </button>
                     </div>
                 </form>
             </div>
+            
+            <!-- Индикатор загрузки -->
+            <div id="loading" class="hidden text-center py-4">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
+                <p class="mt-2 text-gray-600">Отправка...</p>
+            </div>
+            
+            <!-- Сообщения об ошибках -->
+            <div id="error-message" class="hidden mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <div class="flex items-center">
+                    <i class="fas fa-exclamation-circle text-red-500 mr-3"></i>
+                    <span id="error-text" class="text-red-700"></span>
+                </div>
+            </div>
+            
+            <!-- Сообщения об успехе -->
+            <div id="success-message" class="hidden mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div class="flex items-center">
+                    <i class="fas fa-check-circle text-green-500 mr-3"></i>
+                    <span id="success-text" class="text-green-700"></span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Ссылка на другую страницу -->
+        <div class="text-center mt-8">
+            <p class="text-gray-600">
+                У вас еще нет аккаунта? 
+                <a href="{{ route('login') }}" class="text-orange-600 hover:text-orange-700 font-medium">
+                    Создайте его сейчас
+                </a>
+            </p>
         </div>
     </div>
 </div>
 @endsection
 
+
+
 @push('scripts')
 <script>
-    function moveToNext(current, nextFieldName) {
-        if (current.value.length === 1) {
-            const nextField = document.getElementsByName(nextFieldName)[0];
-            if (nextField) {
-                nextField.focus();
-            }
-        }
-        updateFullCode();
-    }
+$(document).ready(function() {
+    console.log('Страница входа загружена');
     
-    function updateFullCode() {
-        let fullCode = '';
-        for (let i = 1; i <= 6; i++) {
-            const field = document.getElementsByName('code' + i)[0];
-            if (field) {
-                fullCode += field.value;
-            }
-        }
-        document.getElementById('full-code').value = fullCode;
-    }
-    
-    // Таймер для повторной отправки кода
     let timerInterval;
-    let timeLeft = 60;
+    let timeLeft = 120;
+    let userEmail = '';
     
-    function startTimer() {
-        const timerElement = document.getElementById('timer');
-        timerElement.textContent = `(${Math.floor(timeLeft / 60)}:${String(timeLeft % 60).padStart(2, '0')})`;
+    // ===== ОБРАБОТЧИК ОТПРАВКИ EMAIL =====
+    $('#email-form').on('submit', function(e) {
+        e.preventDefault();
+        console.log('Отправка формы email');
         
-        timerInterval = setInterval(() => {
-            timeLeft--;
-            timerElement.textContent = `(${Math.floor(timeLeft / 60)}:${String(timeLeft % 60).padStart(2, '0')})`;
-            
-            if (timeLeft <= 0) {
-                clearInterval(timerInterval);
-                document.getElementById('resend-code').classList.remove('text-gray-400', 'cursor-not-allowed');
-                document.getElementById('resend-code').classList.add('text-orange-600', 'hover:text-orange-500');
-                timerElement.textContent = '';
-            }
-        }, 1000);
-    }
-    
-    $(document).ready(function() {
-        // Отправка кода
-        $('#send-code-form').on('submit', function(e) {
-            e.preventDefault();
-            
-            const email = $('#email').val();
-            const btn = $('#send-code-btn');
-            const btnText = $('#send-code-text');
-            const spinner = $('#send-code-spinner');
-            
-            // Валидация email
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!emailRegex.test(email)) {
-                $('#email-error').text('Введите корректный email адрес').removeClass('hidden');
-                return;
-            }
-            
-            btn.prop('disabled', true);
-            btnText.text('Отправка...');
-            spinner.removeClass('hidden');
-            
-            $.ajax({
-                url: "{{ route('send.code') }}",
-                method: 'POST',
-                data: { email: email },
-                success: function(response) {
-                    if (response.success) {
-                        // Показываем форму ввода кода
-                        $('#user-email').text(email);
-                        $('#email-form').hide();
-                        $('#code-form').removeClass('hidden');
-                        
-                        // Устанавливаем таймер
-                        timeLeft = 60;
-                        startTimer();
-                        
-                        // Фокусируемся на первом поле кода
-                        $('input[name="code1"]').focus();
-                    } else {
-                        $('#email-error').text(response.message || 'Ошибка отправки кода').removeClass('hidden');
-                    }
-                },
-                error: function(xhr) {
-                    if (xhr.status === 422) {
-                        const errors = xhr.responseJSON.errors;
-                        $('#email-error').text(errors.email ? errors.email[0] : 'Ошибка валидации').removeClass('hidden');
-                    } else {
-                        $('#email-error').text('Ошибка сервера. Попробуйте позже.').removeClass('hidden');
-                    }
-                },
-                complete: function() {
-                    btn.prop('disabled', false);
-                    btnText.text('Отправить код');
-                    spinner.addClass('hidden');
+        const email = $('#email').val().trim();
+        userEmail = email;
+        
+        if (!email) {
+            showError('Пожалуйста, введите email');
+            return;
+        }
+        
+        showLoading();
+        hideError();
+        hideSuccess();
+        
+        // Отправляем запрос
+        $.ajax({
+            url: '/send-code',
+            method: 'POST',
+            data: {
+                email: email,
+                _token: getCsrfToken()
+            },
+            success: function(response) {
+                console.log('Успешный ответ:', response);
+                hideLoading();
+                
+                if (response.success) {
+                    // Переходим к шагу ввода кода
+                    $('#step-email').hide();
+                    $('#step-code').removeClass('hidden');
+                    $('#user-email').text(email);
+                    
+                    // Запускаем таймер
+                    startTimer();
+                    
+                    // Показываем сообщение
+                    showSuccess(response.message || 'Код отправлен!');
+                    
+                    // Фокус на первый input кода
+                    setTimeout(() => {
+                        $('.code-input[data-index="1"]').focus();
+                    }, 100);
+                    
+                } else {
+                    showError(response.message || 'Ошибка при отправке кода');
                 }
-            });
-        });
-        
-        // Повторная отправка кода
-        $('#resend-code').on('click', function(e) {
-            e.preventDefault();
-            
-            if (timeLeft > 0) return;
-            
-            const email = $('#email').val();
-            
-            $.ajax({
-                url: "{{ route('send.code') }}",
-                method: 'POST',
-                data: { email: email },
-                success: function(response) {
-                    if (response.success) {
-                        // Сбрасываем таймер
-                        clearInterval(timerInterval);
-                        timeLeft = 60;
-                        startTimer();
-                        
-                        // Блокируем кнопку
-                        $(this).addClass('text-gray-400 cursor-not-allowed').removeClass('text-orange-600 hover:text-orange-500');
-                        
-                        // Показываем уведомление
-                        showNotification('Код отправлен повторно', 'success');
-                    }
-                }
-            });
-        });
-        
-        // Подтверждение кода
-        $('#verify-code-form').on('submit', function(e) {
-            e.preventDefault();
-            
-            const code = $('#full-code').val();
-            
-            if (code.length !== 6) {
-                $('#code-error').text('Введите все 6 цифр кода').removeClass('hidden');
-                return;
-            }
-            
-            const btn = $('#verify-code-btn');
-            const btnText = $('#verify-code-text');
-            const spinner = $('#verify-code-spinner');
-            
-            btn.prop('disabled', true);
-            btnText.text('Проверка...');
-            spinner.removeClass('hidden');
-            
-            $.ajax({
-                url: "{{ route('verify.code') }}",
-                method: 'POST',
-                data: { code: code },
-                success: function(response) {
-                    if (response.success) {
-                        showNotification('Успешный вход!', 'success');
-                        setTimeout(() => {
-                            window.location.href = response.redirect || "{{ route('home') }}";
-                        }, 1000);
-                    } else {
-                        $('#code-error').text(response.message || 'Неверный код').removeClass('hidden');
-                        
-                        // Сбрасываем поля кода при ошибке
-                        for (let i = 1; i <= 6; i++) {
-                            $(`input[name="code${i}"]`).val('');
-                        }
-                        $('input[name="code1"]').focus();
-                    }
-                },
-                error: function(xhr) {
-                    if (xhr.status === 422) {
-                        const errors = xhr.responseJSON.errors;
-                        $('#code-error').text(errors.code ? errors.code[0] : 'Ошибка валидации').removeClass('hidden');
-                    } else {
-                        $('#code-error').text('Ошибка сервера. Попробуйте позже.').removeClass('hidden');
-                    }
-                },
-                complete: function() {
-                    btn.prop('disabled', false);
-                    btnText.text('Подтвердить');
-                    spinner.addClass('hidden');
-                }
-            });
-        });
-        
-        // Возврат к форме email
-        $('#back-to-email').on('click', function() {
-            $('#code-form').addClass('hidden');
-            $('#email-form').show();
-            clearInterval(timerInterval);
-        });
-        
-        // Очистка ошибок при вводе
-        $('#email').on('input', function() {
-            $('#email-error').addClass('hidden');
-        });
-        
-        $('input[name^="code"]').on('input', function() {
-            $('#code-error').addClass('hidden');
-            updateFullCode();
-        });
-        
-        // Обработка клавиш в полях кода
-        $('input[name^="code"]').on('keydown', function(e) {
-            if (e.key === 'Backspace' && !this.value) {
-                const prevField = $(this).prev('input');
-                if (prevField.length) {
-                    prevField.focus();
+            },
+            error: function(xhr, status, error) {
+                console.error('Ошибка AJAX:', xhr.status, error);
+                hideLoading();
+                
+                if (xhr.status === 422) {
+                    const errors = xhr.responseJSON.errors;
+                    const errorMsg = Object.values(errors)[0][0];
+                    showError(errorMsg);
+                } else if (xhr.status === 419) {
+                    showError('Ошибка CSRF токена. Обновляем страницу...');
+                    setTimeout(() => location.reload(), 2000);
+                } else {
+                    const error = xhr.responseJSON || {};
+                    showError(error.message || 'Ошибка сервера. Попробуйте позже.');
                 }
             }
         });
     });
     
-    function showNotification(message, type = 'info') {
-        // Удаляем старые уведомления
-        $('.notification-toast').remove();
+    // ===== ОБРАБОТЧИК ПОВТОРНОЙ ОТПРАВКИ КОДА =====
+    $('#resend-code-btn').on('click', function() {
+        if (!userEmail) return;
         
-        const bgColor = type === 'success' ? 'bg-green-500' : 
-                       type === 'error' ? 'bg-red-500' : 'bg-blue-500';
+        resetTimer();
+        startTimer();
         
-        const toast = $(`
-            <div class="notification-toast fixed top-4 right-4 z-50">
-                <div class="${bgColor} text-white px-6 py-3 rounded-lg shadow-lg flex items-center">
-                    <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'} mr-3"></i>
-                    <span>${message}</span>
-                </div>
-            </div>
-        `);
+        $.ajax({
+            url: '/send-code',
+            method: 'POST',
+            data: {
+                email: userEmail,
+                _token: getCsrfToken()
+            },
+            success: function(response) {
+                if (response.success) {
+                    showSuccess(response.message || 'Новый код отправлен!');
+                } else {
+                    showError(response.message);
+                }
+            },
+            error: function(xhr) {
+                const error = xhr.responseJSON || {};
+                showError(error.message || 'Ошибка при повторной отправке');
+            }
+        });
+    });
+    
+    // ===== ОБРАБОТЧИК ВВОДА КОДА =====
+    $('.code-input').on('input', function() {
+        const value = $(this).val().replace(/[^0-9]/g, '');
+        $(this).val(value);
         
-        $('body').append(toast);
+        const index = parseInt($(this).data('index'));
         
-        setTimeout(() => {
-            toast.fadeOut(300, function() {
-                $(this).remove();
-            });
-        }, 3000);
+        if (value.length === 1) {
+            $(this).addClass('filled');
+            
+            // Переходим к следующему input
+            if (index < 6) {
+                $('.code-input[data-index="' + (index + 1) + '"]').focus();
+            }
+        } else {
+            $(this).removeClass('filled');
+        }
+        
+        // Собираем полный код
+        updateFullCode();
+        
+        // Активируем кнопку подтверждения
+        const fullCode = $('#full-code').val();
+        $('#verify-code-btn').prop('disabled', fullCode.length !== 6);
+    });
+    
+    // Обработчик клавиш для кода
+    $('.code-input').on('keydown', function(e) {
+        const index = parseInt($(this).data('index'));
+        
+        // Backspace
+        if (e.key === 'Backspace' && $(this).val() === '' && index > 1) {
+            $('.code-input[data-index="' + (index - 1) + '"]').focus().val('').removeClass('filled');
+            updateFullCode();
+        }
+        
+        // Стрелки
+        if (e.key === 'ArrowLeft' && index > 1) {
+            $('.code-input[data-index="' + (index - 1) + '"]').focus();
+        }
+        
+        if (e.key === 'ArrowRight' && index < 6) {
+            $('.code-input[data-index="' + (index + 1) + '"]').focus();
+        }
+    });
+    
+    // ===== ОБРАБОТЧИК ПРОВЕРКИ КОДА =====
+    $('#code-form').on('submit', function(e) {
+        e.preventDefault();
+        
+        const code = $('#full-code').val();
+        
+        if (code.length !== 6) {
+            showError('Введите полный код из 6 цифр');
+            return;
+        }
+        
+        showLoading();
+        hideError();
+        
+        $.ajax({
+            url: '/verify-code',
+            method: 'POST',
+            data: {
+                code: code,
+                _token: getCsrfToken()
+            },
+            success: function(response) {
+                hideLoading();
+                
+                if (response.success) {
+                    showSuccess('Успешный вход! Перенаправление...');
+                    
+                    setTimeout(() => {
+                        window.location.href = response.redirect || '/';
+                    }, 1000);
+                } else {
+                    showError(response.message || 'Неверный код');
+                    
+                    // Сбрасываем код
+                    $('.code-input').val('').removeClass('filled');
+                    $('.code-input[data-index="1"]').focus();
+                    $('#full-code').val('');
+                    $('#verify-code-btn').prop('disabled', true);
+                }
+            },
+            error: function(xhr) {
+                hideLoading();
+                
+                if (xhr.status === 422) {
+                    const errors = xhr.responseJSON.errors;
+                    const errorMsg = Object.values(errors)[0][0];
+                    showError(errorMsg);
+                } else if (xhr.status === 419) {
+                    showError('Ошибка безопасности. Обновляем страницу...');
+                    setTimeout(() => location.reload(), 2000);
+                } else {
+                    const error = xhr.responseJSON || {};
+                    showError(error.message || 'Ошибка проверки кода');
+                }
+                
+                // Сбрасываем код
+                $('.code-input').val('').removeClass('filled');
+                $('.code-input[data-index="1"]').focus();
+                $('#full-code').val('');
+                $('#verify-code-btn').prop('disabled', true);
+            }
+        });
+    });
+    
+    // ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
+    function getCsrfToken() {
+        return $('meta[name="csrf-token"]').attr('content');
     }
+    
+    function showLoading() {
+        $('#loading').removeClass('hidden');
+        $('#send-code-btn, #resend-code-btn, #verify-code-btn').prop('disabled', true);
+    }
+    
+    function hideLoading() {
+        $('#loading').addClass('hidden');
+        $('#send-code-btn, #verify-code-btn').prop('disabled', false);
+    }
+    
+    function showError(message) {
+        $('#error-text').text(message);
+        $('#error-message').removeClass('hidden');
+        $('#success-message').addClass('hidden');
+    }
+    
+    function hideError() {
+        $('#error-message').addClass('hidden');
+    }
+    
+    function showSuccess(message) {
+        $('#success-text').text(message);
+        $('#success-message').removeClass('hidden');
+        $('#error-message').addClass('hidden');
+    }
+    
+    function hideSuccess() {
+        $('#success-message').addClass('hidden');
+    }
+    
+    function updateFullCode() {
+        let code = '';
+        $('.code-input').each(function() {
+            code += $(this).val();
+        });
+        $('#full-code').val(code);
+    }
+    
+    function startTimer() {
+        timeLeft = 120;
+        updateTimerDisplay();
+        $('#resend-code-btn').prop('disabled', true);
+        
+        clearInterval(timerInterval);
+        timerInterval = setInterval(() => {
+            timeLeft--;
+            updateTimerDisplay();
+            
+            if (timeLeft <= 0) {
+                clearInterval(timerInterval);
+                $('#resend-code-btn').prop('disabled', false);
+            }
+        }, 1000);
+    }
+    
+    function resetTimer() {
+        clearInterval(timerInterval);
+        timeLeft = 120;
+        updateTimerDisplay();
+        $('#resend-code-btn').prop('disabled', true);
+        startTimer();
+    }
+    
+    function updateTimerDisplay() {
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        $('#timer').text(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+        
+        if (timeLeft <= 30) {
+            $('#timer').addClass('expired');
+        } else {
+            $('#timer').removeClass('expired');
+        }
+    }
+    
+    // Инициализация
+    $('#email').focus();
+});
 </script>
 @endpush

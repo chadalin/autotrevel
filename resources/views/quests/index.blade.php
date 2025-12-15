@@ -186,16 +186,17 @@
             </div>
             
             <!-- Рекомендованные квесты -->
-            @if(isset($recommendedQuests) && $recommendedQuests->count() > 0)
-                <div class="mb-8">
-                    <h3 class="text-xl font-bold text-gray-800 mb-4">Рекомендуем вам</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        @foreach($recommendedQuests as $quest)
-                            @include('quests.partials.quest-card', ['quest' => $quest, 'featured' => true])
-                        @endforeach
-                    </div>
-                </div>
-            @endif
+            <!-- Рекомендованные квесты -->
+@if(isset($recommendedQuests) && is_array($recommendedQuests) && count($recommendedQuests) > 0)
+    <div class="mt-8">
+        <h2 class="text-2xl font-bold text-gray-800 mb-4">Рекомендованные для вас</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            @foreach($recommendedQuests as $quest)
+                @include('quests.partials.quest-card-small', ['quest' => $quest])
+            @endforeach
+        </div>
+    </div>
+@endif
             
             <!-- Все квесты -->
             <div id="quests-container">

@@ -3,19 +3,40 @@
 @section('title', $route->title . ' - AutoRuta')
 
 @push('styles')
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""/>
 <style>
     #route-map {
         height: 500px;
+        width: 100%;
         border-radius: 0.5rem;
+        background-color: #f8fafc;
+        position: relative;
     }
+    
+    .leaflet-container {
+        font-family: 'Open Sans', sans-serif !important;
+        font-size: 14px;
+        z-index: 1;
+    }
+    
     .leaflet-popup-content {
-        font-family: 'Open Sans', sans-serif;
+        margin: 12px !important;
+        line-height: 1.4;
+        min-width: 200px;
     }
+    
+    .leaflet-popup-content-wrapper {
+        border-radius: 8px !important;
+        box-shadow: 0 3px 14px rgba(0,0,0,0.2) !important;
+    }
+    
     .rating-stars {
         display: inline-flex;
         direction: row;
     }
+    
     .point-type-badge {
         display: inline-flex;
         align-items: center;
@@ -23,6 +44,40 @@
         border-radius: 9999px;
         font-size: 0.875rem;
         font-weight: 500;
+    }
+    
+    .custom-marker {
+        background: transparent !important;
+        border: none !important;
+    }
+    
+    /* Загрузка карты */
+    .map-loading {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #f8fafc;
+        border-radius: 0.5rem;
+        z-index: 1000;
+    }
+    
+    .map-error {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #fef2f2;
+        border-radius: 0.5rem;
+        z-index: 1000;
     }
 </style>
 @endpush
@@ -129,6 +184,29 @@
             @endcan
         </div>
     </div>
+
+    <!-- Кнопка прохождения маршрута -->
+<!-- Кнопка прохождения маршрута -->
+@auth
+    <div class="bg-gradient-to-r from-green-50 to-emerald-100 rounded-xl shadow-lg p-6 mb-6">
+        <h3 class="font-bold text-lg text-gray-800 mb-4">Проехали этот маршрут?</h3>
+        <p class="text-gray-700 mb-4">Подтвердите прохождение маршрута, чтобы получить достижения и опыт!</p>
+        
+        <a href="{{ route('routes.complete', $route) }}"
+           class="block w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white text-center py-3 rounded-lg font-bold text-lg transition duration-300 shadow-lg hover:shadow-xl">
+            <i class="fas fa-check-circle mr-2"></i> Проехал маршрут!
+        </a>
+    </div>
+@else
+    <div class="bg-gradient-to-r from-gray-50 to-blue-50 rounded-xl shadow-lg p-6 mb-6">
+        <h3 class="font-bold text-lg text-gray-800 mb-4">Хотите отметить прохождение?</h3>
+        <p class="text-gray-700 mb-4">Войдите, чтобы подтвердить прохождение маршрута и получать достижения!</p>
+        <a href="{{ route('login') }}" 
+           class="block w-full bg-gradient-to-r from-orange-500 to-red-600 text-white text-center py-3 rounded-lg font-bold text-lg hover:from-orange-600 hover:to-red-700 transition duration-300">
+            Войти в аккаунт
+        </a>
+    </div>
+@endauth
     
     <!-- Основной контент -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -144,7 +222,27 @@
             <!-- Карта маршрута -->
             <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
                 <h2 class="text-2xl font-bold text-gray-800 mb-4">Маршрут на карте</h2>
-                <div id="route-map"></div>
+                <div id="route-map">
+                    <!-- Индикатор загрузки -->
+                    <div class="map-loading">
+                        <div class="text-center">
+                            <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500 mb-4"></div>
+                            <p class="text-gray-600">Загрузка карты...</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Сообщение об ошибке (скрыто по умолчанию) -->
+                    <div class="map-error hidden">
+                        <div class="text-center p-8">
+                            <i class="fas fa-exclamation-triangle text-red-500 text-5xl mb-4"></i>
+                            <h3 class="text-xl font-semibold text-gray-800 mb-2">Не удалось загрузить карту</h3>
+                            <p class="text-gray-600 mb-4">Проверьте подключение к интернету и попробуйте снова</p>
+                            <button onclick="initializeMap()" class="bg-gradient-to-r from-orange-500 to-red-600 text-white px-6 py-2 rounded-lg font-medium hover:from-orange-600 hover:to-red-700 transition duration-300">
+                                <i class="fas fa-redo mr-2"></i>Попробовать снова
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
             
             <!-- Описание -->
@@ -562,6 +660,179 @@
     </div>
 </div>
 
+
+<!-- Блок запуска маршрута -->
+@auth
+    @php
+        // Проверяем, есть ли активная сессия
+        $activeSession = \App\Models\RouteSession::where('user_id', auth()->id())
+            ->where('route_id', $route->id)
+            ->whereIn('status', ['active', 'paused'])
+            ->first();
+            
+        $hasCompleted = \App\Models\RouteCompletion::where('user_id', auth()->id())
+            ->where('route_id', $route->id)
+            ->exists();
+        
+        // Получаем активные квесты с этим маршрутом
+        $userActiveQuests = auth()->user()->userQuests()
+            ->where('status', 'in_progress')
+            ->whereHas('quest.routes', function($q) use ($route) {
+                $q->where('travel_routes.id', $route->id);
+            })
+            ->with('quest')
+            ->get();
+    @endphp
+    
+    @if($activeSession)
+        <!-- Есть активная сессия -->
+        <div class="bg-gradient-to-r from-blue-50 to-cyan-100 rounded-xl shadow-lg p-6 mb-6">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h3 class="font-bold text-lg text-gray-800 mb-1">🚗 Маршрут в процессе</h3>
+                    <p class="text-gray-700">Вы проходите этот маршрут</p>
+                </div>
+                <div class="px-3 py-1 bg-blue-500 text-white rounded-full text-sm font-medium">
+                    {{ $activeSession->getProgressPercentage() }}%
+                </div>
+            </div>
+            
+            <div class="space-y-3">
+                <a href="{{ route('routes.navigate', $route) }}" 
+                   class="block w-full bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white text-center py-3 rounded-lg font-bold text-lg transition duration-300 shadow-lg hover:shadow-xl">
+                    <i class="fas fa-play-circle mr-2"></i> Продолжить навигацию
+                </a>
+                
+                <div class="flex space-x-3">
+                    <form action="{{ route('routes.navigation.pause', $activeSession) }}" method="POST" class="flex-1">
+                        @csrf
+                        <button type="submit" 
+                                class="w-full bg-yellow-500 hover:bg-yellow-600 text-white py-2 rounded-lg font-medium transition duration-300">
+                            <i class="fas fa-pause mr-2"></i> Пауза
+                        </button>
+                    </form>
+                    
+                    <form action="{{ route('routes.navigation.complete', $activeSession) }}" method="POST" class="flex-1">
+                        @csrf
+                        <button type="submit" 
+                                onclick="return confirm('Завершить маршрут?')"
+                                class="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-medium transition duration-300">
+                            <i class="fas fa-flag-checkered mr-2"></i> Завершить
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+    @elseif($hasCompleted)
+        <!-- Маршрут уже пройден -->
+        <div class="bg-gradient-to-r from-green-50 to-emerald-100 rounded-xl shadow-lg p-6 mb-6">
+            <h3 class="font-bold text-lg text-gray-800 mb-4">🎉 Маршрут пройден!</h3>
+            <p class="text-gray-700 mb-4">Вы успешно завершили этот маршрут!</p>
+            
+            @if($userActiveQuests->count() > 0)
+                <div class="mb-4">
+                    <p class="text-sm font-medium text-gray-700 mb-2">Пройти еще раз для квестов:</p>
+                    <div class="space-y-2">
+                        @foreach($userActiveQuests as $userQuest)
+                            <div class="bg-white rounded-lg p-3 border border-green-200">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="font-medium text-gray-800">{{ $userQuest->quest->title }}</p>
+                                        <p class="text-xs text-gray-600">
+                                            Прогресс: {{ $userQuest->progress_percentage ?? 0 }}%
+                                        </p>
+                                    </div>
+                                    <form action="{{ route('routes.navigation.start', $route) }}" method="POST">
+                                        @csrf
+                                        <input type="hidden" name="quest_id" value="{{ $userQuest->quest->id }}">
+                                        <button type="submit" 
+                                                class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium">
+                                            <i class="fas fa-redo mr-1"></i> Пройти
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+            
+            <form action="{{ route('routes.navigation.start', $route) }}" method="POST">
+                @csrf
+                <button type="submit" 
+                        class="block w-full bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white text-center py-3 rounded-lg font-bold text-lg transition duration-300 shadow-lg hover:shadow-xl">
+                    <i class="fas fa-play mr-2"></i> Пройти еще раз
+                </button>
+            </form>
+        </div>
+        
+    @else
+        <!-- Маршрут еще не проходился -->
+        <div class="bg-gradient-to-r from-orange-50 to-red-100 rounded-xl shadow-lg p-6 mb-6">
+            <h3 class="font-bold text-lg text-gray-800 mb-4">🚀 Начать путешествие</h3>
+            <p class="text-gray-700 mb-4">Запустите навигатор и отправляйтесь в путь!</p>
+            
+            @if($userActiveQuests->count() > 0)
+                <div class="mb-4">
+                    <p class="text-sm font-medium text-gray-700 mb-2">Начать маршрут для квестов:</p>
+                    <div class="space-y-2">
+                        @foreach($userActiveQuests as $userQuest)
+                            <div class="bg-white rounded-lg p-3 border border-orange-200">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="font-medium text-gray-800">{{ $userQuest->quest->title }}</p>
+                                        <p class="text-xs text-gray-600">
+                                            +{{ $userQuest->quest->reward_xp }} XP • 
+                                            {{ $userQuest->quest->routes->count() }} маршрутов
+                                        </p>
+                                    </div>
+                                    <form action="{{ route('routes.navigation.start', $route) }}" method="POST">
+                                        @csrf
+                                        <input type="hidden" name="quest_id" value="{{ $userQuest->quest->id }}">
+                                        <button type="submit" 
+                                                class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium">
+                                            <i class="fas fa-play mr-1"></i> Для квеста
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+            
+            <form action="{{ route('routes.navigation.start', $route) }}" method="POST">
+                @csrf
+                <button type="submit" 
+                        class="block w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white text-center py-3 rounded-lg font-bold text-lg transition duration-300 shadow-lg hover:shadow-xl">
+                    <i class="fas fa-play-circle mr-2"></i> Запустить навигатор
+                </button>
+            </form>
+            
+            <div class="mt-4 p-3 bg-white rounded-lg border border-orange-200">
+                <div class="flex items-center">
+                    <i class="fas fa-info-circle text-orange-500 mr-2"></i>
+                    <p class="text-sm text-gray-700">
+                        Навигатор поможет вам следовать по маршруту, отмечать точки интереса и выполнять задания квестов
+                    </p>
+                </div>
+            </div>
+        </div>
+    @endif
+    
+@else
+    <!-- Для неавторизованных -->
+    <div class="bg-gradient-to-r from-gray-50 to-blue-50 rounded-xl shadow-lg p-6 mb-6">
+        <h3 class="font-bold text-lg text-gray-800 mb-4">Хотите отправиться в путь?</h3>
+        <p class="text-gray-700 mb-4">Войдите, чтобы запустить навигатор по маршруту!</p>
+        <a href="{{ route('login') }}" 
+           class="block w-full bg-gradient-to-r from-orange-500 to-red-600 text-white text-center py-3 rounded-lg font-bold text-lg hover:from-orange-600 hover:to-red-700 transition duration-300">
+            Войти и начать путешествие
+        </a>
+    </div>
+@endauth
+
 <!-- Модальное окно для изображений -->
 <div id="image-modal" class="hidden fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center">
     <div class="relative max-w-4xl max-h-full">
@@ -574,6 +845,389 @@
 @endsection
 
 @push('scripts')
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-let routeMap
+// Глобальная переменная для карты
+let routeMap = null;
+
+// Основная функция инициализации карты
+function initializeMap() {
+    console.log('Инициализация карты...');
+    
+    // Скрываем сообщение об ошибке если оно было показано
+    document.querySelector('.map-error')?.classList.add('hidden');
+    
+    // Проверяем наличие Leaflet
+    if (typeof L === 'undefined') {
+        console.error('Leaflet не загружен!');
+        showMapError();
+        return;
+    }
+    
+    const mapElement = document.getElementById('route-map');
+    if (!mapElement) {
+        console.error('Элемент карты не найден');
+        return;
+    }
+    
+    // Проверяем координаты
+    const startLat = {{ $route->start_lat ?? 55.7558 }};
+    const startLng = {{ $route->start_lng ?? 37.6173 }};
+    
+    if (isNaN(startLat) || isNaN(startLng)) {
+        console.error('Невалидные координаты маршрута');
+        showMapError();
+        return;
+    }
+    
+    try {
+        // Удаляем старую карту если она существует
+        if (routeMap) {
+            routeMap.remove();
+            routeMap = null;
+        }
+        
+        // Создаем новую карту
+        routeMap = L.map('route-map').setView([startLat, startLng], 10);
+        
+        // Добавляем базовый слой OpenStreetMap
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19,
+            minZoom: 3
+        }).addTo(routeMap);
+        
+        // Добавляем маркер старта
+        const startMarker = L.marker([startLat, startLng]).addTo(routeMap);
+        startMarker.bindPopup(`
+            <div class="p-2">
+                <div class="font-bold text-gray-800 mb-1">Старт маршрута</div>
+                <div class="text-sm text-gray-600">{{ $route->title }}</div>
+            </div>
+        `);
+        
+        // Добавляем маркер финиша если есть
+        @if(!is_null($route->end_lat) && !is_null($route->end_lng))
+            const endLat = {{ $route->end_lat }};
+            const endLng = {{ $route->end_lng }};
+            
+            if (!isNaN(endLat) && !isNaN(endLng)) {
+                const endMarker = L.marker([endLat, endLng]).addTo(routeMap);
+                endMarker.bindPopup(`
+                    <div class="p-2">
+                        <div class="font-bold text-gray-800 mb-1">Финиш маршрута</div>
+                        <div class="text-sm text-gray-600">{{ $route->title }}</div>
+                    </div>
+                `);
+            }
+        @endif
+        
+        // Добавляем маршрут если есть координаты
+        @if($route->coordinates && is_array($route->coordinates) && count($route->coordinates) > 0)
+            try {
+                const coordinates = [
+                    @foreach($route->coordinates as $coord)
+                    [{{ $coord['lat'] }}, {{ $coord['lng'] }}],
+                    @endforeach
+                ];
+                
+                // Создаем линию маршрута
+                const routeLine = L.polyline(coordinates, {
+                    color: '#f97316',
+                    weight: 4,
+                    opacity: 0.8,
+                    smoothFactor: 1
+                }).addTo(routeMap);
+                
+                // Фокусируем карту на маршруте
+                if (coordinates.length > 1) {
+                    routeMap.fitBounds(routeLine.getBounds());
+                }
+                
+            } catch (e) {
+                console.warn('Не удалось добавить маршрут:', e);
+            }
+        @endif
+        
+        // Добавляем точки интереса
+        @foreach($route->points as $point)
+            @if(!is_null($point->lat) && !is_null($point->lng))
+                try {
+                    // Определяем цвет и иконку для типа точки
+                    let pointColor, pointIcon;
+                    
+                    switch('{{ $point->type }}') {
+                        case 'viewpoint':
+                            pointColor = '#F59E0B';
+                            pointIcon = 'fas fa-binoculars';
+                            break;
+                        case 'cafe':
+                            pointColor = '#EF4444';
+                            pointIcon = 'fas fa-utensils';
+                            break;
+                        case 'hotel':
+                            pointColor = '#3B82F6';
+                            pointIcon = 'fas fa-bed';
+                            break;
+                        case 'attraction':
+                            pointColor = '#6366F1';
+                            pointIcon = 'fas fa-landmark';
+                            break;
+                        default:
+                            pointColor = '#6B7280';
+                            pointIcon = 'fas fa-map-marker-alt';
+                    }
+                    
+                    // Создаем кастомную иконку
+                    const customIcon = L.divIcon({
+                        html: `
+                            <div style="
+                                width: 36px;
+                                height: 36px;
+                                background-color: ${pointColor};
+                                border-radius: 50%;
+                                border: 3px solid white;
+                                box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                color: white;
+                                font-size: 14px;
+                            ">
+                                <i class="${pointIcon}"></i>
+                            </div>
+                        `,
+                        className: 'custom-marker',
+                        iconSize: [36, 36],
+                        iconAnchor: [18, 36]
+                    });
+                    
+                    const pointMarker = L.marker([{{ $point->lat }}, {{ $point->lng }}], {
+                        icon: customIcon
+                    }).addTo(routeMap);
+                    
+                    // Всплывающее окно для точки
+                    pointMarker.bindPopup(`
+                        <div class="p-3 max-w-xs">
+                            <div class="flex items-start mb-2">
+                                <div class="w-10 h-10 rounded-lg flex items-center justify-center mr-3" 
+                                     style="background-color: ${pointColor}20; color: ${pointColor};">
+                                    <i class="${pointIcon}"></i>
+                                </div>
+                                <div>
+                                    <div class="font-bold text-gray-800">{{ $point->title }}</div>
+                                    <div class="text-sm text-gray-600 mt-1">{{ $point->type_label }}</div>
+                                </div>
+                            </div>
+                            @if($point->description)
+                                <div class="text-gray-700 text-sm mt-2">{{ $point->description }}</div>
+                            @endif
+                        </div>
+                    `);
+                    
+                } catch (pointError) {
+                    console.warn('Ошибка при добавлении точки:', pointError);
+                }
+            @endif
+        @endforeach
+        
+        // Добавляем элементы управления
+        L.control.zoom({
+            position: 'topright'
+        }).addTo(routeMap);
+        
+        // Обновляем размер карты после загрузки
+        setTimeout(() => {
+            if (routeMap) {
+                routeMap.invalidateSize();
+                // Скрываем индикатор загрузки
+                document.querySelector('.map-loading')?.remove();
+                console.log('Карта успешно загружена');
+            }
+        }, 100);
+        
+        // Обработчик изменения размера окна
+        let resizeTimer;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                if (routeMap) {
+                    routeMap.invalidateSize();
+                }
+            }, 250);
+        });
+        
+        // Сохраняем карту в глобальной переменной для отладки
+        window.routeMap = routeMap;
+        
+    } catch (error) {
+        console.error('Критическая ошибка при создании карты:', error);
+        showMapError();
+    }
+}
+
+// Функция показа ошибки карты
+function showMapError() {
+    const loadingElement = document.querySelector('.map-loading');
+    const errorElement = document.querySelector('.map-error');
+    
+    if (loadingElement) {
+        loadingElement.remove();
+    }
+    
+    if (errorElement) {
+        errorElement.classList.remove('hidden');
+    }
+}
+
+// Инициализация при загрузке страницы
+document.addEventListener('DOMContentLoaded', () => {
+    // Даем время на загрузку Leaflet и других ресурсов
+    setTimeout(initializeMap, 500);
+});
+
+// Другие функции для страницы
+function openImageModal(src) {
+    const modal = document.getElementById('image-modal');
+    const modalImage = document.getElementById('modal-image');
+    
+    if (modal && modalImage) {
+        modalImage.src = src;
+        modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+// Закрытие модального окна
+document.addEventListener('DOMContentLoaded', () => {
+    const modal = document.getElementById('image-modal');
+    const closeBtn = document.getElementById('close-modal');
+    
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            if (modal) {
+                modal.classList.add('hidden');
+                document.body.style.overflow = '';
+            }
+        });
+    }
+    
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.classList.add('hidden');
+                document.body.style.overflow = '';
+            }
+        });
+    }
+    
+    // Закрытие по Escape
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal && !modal.classList.contains('hidden')) {
+            modal.classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+    });
+    
+    // Кнопка "Сохранить в избранное"
+    const saveBtn = document.getElementById('save-route-btn');
+    if (saveBtn) {
+        saveBtn.addEventListener('click', async () => {
+            try {
+                const response = await fetch('{{ route("routes.save", $route) }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const saveText = document.getElementById('save-text');
+                    const favoritesCount = document.getElementById('favorites-count');
+                    
+                    if (data.saved) {
+                        saveBtn.classList.remove('bg-gray-100', 'text-gray-800');
+                        saveBtn.classList.add('bg-red-100', 'text-red-800');
+                        saveBtn.querySelector('i').className = 'fas fa-heart mr-2';
+                        saveText.textContent = 'В избранном';
+                    } else {
+                        saveBtn.classList.remove('bg-red-100', 'text-red-800');
+                        saveBtn.classList.add('bg-gray-100', 'text-gray-800');
+                        saveBtn.querySelector('i').className = 'far fa-heart mr-2';
+                        saveText.textContent = 'В избранное';
+                    }
+                    
+                    if (favoritesCount) {
+                        favoritesCount.textContent = data.favorites_count;
+                    }
+                }
+            } catch (error) {
+                console.error('Ошибка:', error);
+                alert('Ошибка при сохранении маршрута');
+            }
+        });
+    }
+    
+    // Кнопка "Поделиться"
+    const shareBtn = document.getElementById('share-btn');
+    if (shareBtn) {
+        shareBtn.addEventListener('click', () => {
+            if (navigator.share) {
+                navigator.share({
+                    title: '{{ $route->title }}',
+                    text: 'Посмотрите этот маршрут на AutoRuta!',
+                    url: window.location.href
+                });
+            } else {
+                navigator.clipboard.writeText(window.location.href).then(() => {
+                    alert('Ссылка скопирована в буфер обмена!');
+                });
+            }
+        });
+    }
+    
+    // Копирование ссылки
+    const copyLinkBtn = document.getElementById('copy-link');
+    if (copyLinkBtn) {
+        copyLinkBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(window.location.href).then(() => {
+                const originalText = copyLinkBtn.querySelector('span');
+                const originalTextContent = originalText.textContent;
+                
+                originalText.textContent = 'Скопировано!';
+                originalText.classList.add('text-green-600');
+                
+                setTimeout(() => {
+                    originalText.textContent = originalTextContent;
+                    originalText.classList.remove('text-green-600');
+                }, 2000);
+            });
+        });
+    }
+    
+    // Рейтинг звездочек
+    document.querySelectorAll('.rating-star').forEach(star => {
+        star.addEventListener('click', function() {
+            const input = this.previousElementSibling;
+            if (input && input.type === 'radio') {
+                input.checked = true;
+                
+                // Обновляем отображение звезд
+                const stars = this.parentNode.querySelectorAll('.rating-star');
+                const rating = parseInt(input.value);
+                
+                stars.forEach((s, index) => {
+                    const icon = s.querySelector('i');
+                    if (index < rating) {
+                        icon.className = icon.className.replace('far', 'fas');
+                    } else {
+                        icon.className = icon.className.replace('fas', 'far');
+                    }
+                });
+            }
+        });
+    });
+});
+</script>
+@endpush

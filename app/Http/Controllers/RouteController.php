@@ -74,65 +74,74 @@ class RouteController extends Controller
     }
 
     // Детальная страница маршрута
-    public function show($id)
+   public function show(Route $route)
 {
-    $route = Route::with([
-        'user', 
-        'tags',
-        'reviews.user'
-    ])->findOrFail($id);
-    
-    // Загружаем точки интереса если таблица существует
-    if (\Illuminate\Support\Facades\Schema::hasTable('points_of_interest')) {
-        $route->load(['pointsOfInterest' => function($query) {
-            $query->orderBy('order');
-        }]);
+    try {
+        // Увеличиваем счетчик просмотров
+        $route->increment('views_count');
+        
+        // Загружаем все необходимые отношения
+        $route->load([
+            'user',
+            'tags',
+            'points' => function($query) {
+                $query->orderBy('order');
+            },
+            'reviews.user'
+        ]);
+        
+        // ВРЕМЕННО: отключаем сложный запрос для activeQuests
+        $activeQuests = collect();
+        
+        // Похожие маршруты
+        $similarRoutes = Route::whereHas('tags', function($query) use ($route) {
+                $query->whereIn('tags.id', $route->tags->pluck('id'));
+            })
+            ->where('id', '!=', $route->id)
+            ->where('is_published', true)
+            ->withCount('reviews')
+            ->limit(4)
+            ->get();
+        
+        // Статистика для рейтингов
+        $averageRatings = [
+            'scenery' => $route->reviews->avg('scenery_rating') ?? 0,
+            'road_quality' => $route->reviews->avg('road_quality_rating') ?? 0,
+            'safety' => $route->reviews->avg('safety_rating') ?? 0,
+            'infrastructure' => $route->reviews->avg('infrastructure_rating') ?? 0,
+        ];
+        
+        // Проверка, сохранен ли маршрут в избранном
+        $isSaved = false;
+        if (auth()->check() && method_exists($route, 'favoritedByUsers')) {
+            $isSaved = $route->favoritedByUsers()->where('user_id', auth()->id())->exists();
+        }
+        
+        return view('routes.show', compact(
+            'route',
+            'similarRoutes',
+            'averageRatings',
+            'isSaved',
+            'activeQuests'
+        ));
+        
+    } catch (\Exception $e) {
+        \Log::error('Ошибка при показе маршрута: ' . $e->getMessage());
+        \Log::error($e->getTraceAsString());
+        
+        return view('routes.show', [
+            'route' => $route,
+            'similarRoutes' => collect(),
+            'averageRatings' => [
+                'scenery' => 0,
+                'road_quality' => 0,
+                'safety' => 0,
+                'infrastructure' => 0,
+            ],
+            'isSaved' => false,
+            'activeQuests' => collect(),
+        ]);
     }
-    
-    // Проверяем, сохранен ли маршрут текущим пользователем
-    $isSaved = false;
-    if (auth()->check()) {
-        $isSaved = auth()->user()->savedRoutes()->where('route_id', $id)->exists();
-    }
-    
-    // Рассчитываем средние рейтинги
-    $averageRatings = [
-        'scenery' => $route->reviews->avg('scenery_rating') ?? 0,
-        'road_quality' => $route->reviews->avg('road_quality_rating') ?? 0,
-        'safety' => $route->reviews->avg('safety_rating') ?? 0,
-        'infrastructure' => $route->reviews->avg('infrastructure_rating') ?? 0,
-    ];
-    
-    // Находим похожие маршруты
-    $similarRoutes = Route::where('id', '!=', $id)
-        ->where(function($query) use ($route) {
-            // По тегам
-            if ($route->tags->isNotEmpty()) {
-                $tagIds = $route->tags->pluck('id')->toArray();
-                $query->whereHas('tags', function($q) use ($tagIds) {
-                    $q->whereIn('tags.id', $tagIds);
-                });
-            }
-            
-            // Или по сложности
-            $query->orWhere('difficulty', $route->difficulty);
-            
-            // Или по типу дороги
-            $query->orWhere('road_type', $route->road_type);
-        })
-        ->where('is_published', true)
-        ->with(['user', 'tags'])
-        ->limit(3)
-        ->get();
-    
-    $route->increment('views_count');
-    
-    return view('routes.show', compact(
-        'route', 
-        'isSaved', 
-        'averageRatings', 
-        'similarRoutes'
-    ));
 }
 
     // Форма создания маршрута
@@ -143,88 +152,134 @@ class RouteController extends Controller
     }
 
     // Сохранение маршрута
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'title' => 'required|string|max:255',
-            'description' => 'required|string|min:100',
-            'length_km' => 'required|numeric|min:1',
-            'duration_minutes' => 'required|integer|min:10',
-            'difficulty' => 'required|in:easy,medium,hard',
-            'road_type' => 'required|in:asphalt,gravel,offroad,mixed',
-            'tags' => 'array',
-            'tags.*' => 'exists:tags,id',
-            'cover_image' => 'nullable|image|max:5120',
-            'start_coordinates' => 'required|array|size:2',
-            'end_coordinates' => 'required|array|size:2',
-            'path_coordinates' => 'nullable|array',
-            'points' => 'nullable|array',
-            'points.*.title' => 'required|string|max:255',
-            'points.*.description' => 'nullable|string',
-            'points.*.type' => 'required|in:viewpoint,cafe,hotel,attraction,gas_station,camping,photo_spot,nature,historical,other',
-            'points.*.lat' => 'required|numeric|between:-90,90',
-            'points.*.lng' => 'required|numeric|between:-180,180',
-            'points.*.photos' => 'nullable|array',
-            'points.*.photos.*' => 'image|max:2048',
-        ]);
-
-        // Обработка обложки
-        if ($request->hasFile('cover_image')) {
-            $path = $request->file('cover_image')->store('routes/covers', 'public');
-            $validated['cover_image'] = $path;
+  // Сохранение маршрута
+// Сохранение маршрута
+public function store(Request $request)
+{
+    // Валидация основной информации
+    $validated = $request->validate([
+        'title' => 'required|string|max:255',
+        'description' => 'required|string|min:100',
+        'length_km' => 'required|numeric|min:0.1',
+        'duration_minutes' => 'required|integer|min:1',
+        'difficulty' => 'required|in:easy,medium,hard',
+        'road_type' => 'required|in:asphalt,gravel,offroad,mixed',
+        'start_coordinates' => 'required|json',
+        'end_coordinates' => 'required|json',
+        'path_coordinates' => 'required|json',
+        'cover_image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
+        'publish' => 'nullable|boolean',
+        'tags' => 'nullable|array',
+        'tags.*' => 'exists:tags,id',
+        'points' => 'nullable|array',
+        'points.*.title' => 'required|string|max:255',
+        'points.*.type' => 'required|in:viewpoint,cafe,hotel,attraction,gas_station,camping,photo_spot,nature,historical,other',
+        'points.*.description' => 'nullable|string',
+        'points.*.lat' => 'required|numeric',
+        'points.*.lng' => 'required|numeric',
+    ]);
+    
+    // Валидация фотографий точек (отдельно, так как могут быть множественные файлы)
+    if ($request->has('points')) {
+        foreach ($request->points as $index => $pointData) {
+            $request->validate([
+                "points.{$index}.photos.*" => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
+            ]);
         }
-
+    }
+    
+    try {
+        // Декодируем координаты
+        $startCoords = json_decode($validated['start_coordinates'], true);
+        $endCoords = json_decode($validated['end_coordinates'], true);
+        $pathCoords = json_decode($validated['path_coordinates'], true);
+        
         // Создаем маршрут
-        $route = Auth::user()->routes()->create([
+        $route = auth()->user()->routes()->create([
             'title' => $validated['title'],
-            'slug' => Str::slug($validated['title']) . '-' . time(),
             'description' => $validated['description'],
-            'short_description' => Str::limit($validated['description'], 150),
             'length_km' => $validated['length_km'],
             'duration_minutes' => $validated['duration_minutes'],
+            'duration_hours' => ceil($validated['duration_minutes'] / 60),
             'difficulty' => $validated['difficulty'],
             'road_type' => $validated['road_type'],
-            'cover_image' => $validated['cover_image'] ?? null,
-            'start_coordinates' => $validated['start_coordinates'],
-            'end_coordinates' => $validated['end_coordinates'],
-            'path_coordinates' => $validated['path_coordinates'] ?? [],
-            'is_published' => $request->has('publish'),
+            'start_lat' => $startCoords[0],
+            'start_lng' => $startCoords[1],
+            'end_lat' => $endCoords[0],
+            'end_lng' => $endCoords[1],
+            'coordinates' => json_encode($pathCoords),
+            'is_published' => $request->boolean('publish', true),
         ]);
-
-        // Привязываем теги
-        if (!empty($validated['tags'])) {
-            $route->tags()->attach($validated['tags']);
-        }
-
-        // Создаем точки интереса
-        if (!empty($validated['points'])) {
-            foreach ($validated['points'] as $index => $pointData) {
-                $point = new PointOfInterest([
-                    'title' => $pointData['title'],
-                    'description' => $pointData['description'] ?? null,
-                    'type' => $pointData['type'],
-                    'lat' => $pointData['lat'],
-                    'lng' => $pointData['lng'],
-                    'order' => $index,
-                ]);
-
-                // Обработка фото точек
-                if (!empty($pointData['photos'])) {
-                    $photos = [];
-                    foreach ($pointData['photos'] as $photo) {
-                        $path = $photo->store('routes/points', 'public');
-                        $photos[] = $path;
-                    }
-                    $point->photos = $photos;
-                }
-
-                $route->points()->save($point);
+        
+        // Загрузка обложки
+        if ($request->hasFile('cover_image') && $request->file('cover_image')->isValid()) {
+            try {
+                $path = $request->file('cover_image')->store('routes/covers', 'public');
+                $route->cover_image = $path;
+                $route->save();
+            } catch (\Exception $e) {
+                \Log::warning('Не удалось загрузить обложку: ' . $e->getMessage());
+                // Продолжаем без обложки
             }
         }
-
+        
+        // Привязка тегов
+        if ($request->has('tags')) {
+            $route->tags()->attach($request->tags);
+        }
+        
+        // Обработка точек интереса
+        if ($request->has('points')) {
+            foreach ($request->points as $index => $pointData) {
+                $point = $route->points()->create([
+                    'title' => $pointData['title'] ?? "Точка " . ($index + 1),
+                    'type' => $pointData['type'] ?? 'other',
+                    'description' => $pointData['description'] ?? null,
+                    'lat' => $pointData['lat'] ?? 0,
+                    'lng' => $pointData['lng'] ?? 0,
+                    'order' => $index,
+                ]);
+                
+                // Обработка фотографий точки
+                if (isset($pointData['photos']) && is_array($pointData['photos'])) {
+                    $photoPaths = [];
+                    foreach ($pointData['photos'] as $photo) {
+                        if ($photo && $photo->isValid()) {
+                            try {
+                                $photoPath = $photo->store('points/photos', 'public');
+                                $photoPaths[] = $photoPath;
+                            } catch (\Exception $e) {
+                                \Log::warning('Не удалось загрузить фото точки: ' . $e->getMessage());
+                                continue;
+                            }
+                        }
+                    }
+                    if (!empty($photoPaths)) {
+                        $point->photos = json_encode($photoPaths);
+                        $point->save();
+                    }
+                }
+            }
+        }
+        
+        // Логируем действие
+        activity()
+            ->causedBy(auth()->user())
+            ->performedOn($route)
+            ->log('created');
+        
         return redirect()->route('routes.show', $route)
             ->with('success', 'Маршрут успешно создан!');
+            
+    } catch (\Exception $e) {
+        \Log::error('Ошибка создания маршрута: ' . $e->getMessage());
+        \Log::error($e->getTraceAsString());
+        
+        return back()
+            ->withInput()
+            ->with('error', 'Произошла ошибка при создании маршрута: ' . $e->getMessage());
     }
+}
 
     // Форма редактирования маршрута
     public function edit(Route $route)
@@ -445,4 +500,31 @@ class RouteController extends Controller
 
         return response()->json($data);
     }
+
+    public function complete(Route $route, Request $request)
+{
+    $user = Auth::user();
+    
+    // Получаем активные квесты пользователя, которые включают этот маршрут
+    $userQuests = $user->userQuests()
+        ->where('status', 'started')
+        ->whereHas('quest', function($query) use ($route) {
+            $query->whereHas('routes', function($q) use ($route) {
+                $q->where('routes.id', $route->id);
+            });
+        })
+        ->with('quest')
+        ->get();
+
+    // Проверяем, не пройден ли уже этот маршрут в рамках квестов
+    $completedQuests = [];
+    foreach ($userQuests as $userQuest) {
+        $completedRoutes = $userQuest->progress['completed_routes'] ?? [];
+        if (in_array($route->id, $completedRoutes)) {
+            $completedQuests[] = $userQuest->quest->id;
+        }
+    }
+
+    return view('routes.complete', compact('route', 'userQuests', 'completedQuests'));
+}
 }

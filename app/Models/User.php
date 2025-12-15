@@ -5,6 +5,9 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 //use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
@@ -40,10 +43,6 @@ class User extends Authenticatable
     ];
 
     protected $appends = ['next_level_exp', 'level_progress'];
-
-    // ... существующие методы ...
-
-    // Новые отношения
 
     /**
      * Генерирует код верификации
@@ -87,27 +86,79 @@ class User extends Authenticatable
         return true;
     }
 
-
-    public function userQuests()
-    {
-        return $this->hasMany(UserQuest::class);
-    }
-
-    public function badges()
+    /**
+     * Отношения
+     */
+    
+    public function badges(): BelongsToMany
     {
         return $this->belongsToMany(QuestBadge::class, 'user_badges', 'user_id', 'badge_id')
             ->withTimestamps()
             ->withPivot('earned_at', 'metadata');
     }
 
-    public function stats()
+    public function questCompletions(): HasMany
+    {
+        return $this->hasMany(QuestCompletion::class);
+    }
+
+    public function savedRoutes(): BelongsToMany
+    {
+        return $this->belongsToMany(TravelRoute::class, 'saved_routes', 'user_id', 'route_id')
+                    ->withTimestamps();
+    }
+
+    public function routes(): HasMany
+    {
+        return $this->hasMany(TravelRoute::class);
+    }
+    
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(Review::class);
+    }
+    
+    public function sessions(): HasMany
+    {
+        return $this->hasMany(RouteSession::class);
+    }
+    
+    public function completions(): HasMany
+    {
+        return $this->hasMany(RouteCompletion::class);
+    }
+    
+    // Связь с квестами через промежуточную таблицу user_quests
+    public function quests(): BelongsToMany
+    {
+        return $this->belongsToMany(Quest::class, 'user_quests')
+            ->withPivot(['status', 'progress_current', 'progress_target', 'started_at', 'completed_at'])
+            ->withTimestamps();
+    }
+    
+    public function activeQuests(): BelongsToMany
+    {
+        return $this->quests()->wherePivot('status', 'in_progress');
+    }
+    
+    public function userQuests(): HasMany
+    {
+        return $this->hasMany(UserQuest::class);
+    }
+    
+    public function stats(): HasOne
     {
         return $this->hasOne(UserStats::class);
     }
-
-    public function questCompletions()
+    
+    public function messages(): HasMany
     {
-        return $this->hasMany(QuestCompletion::class);
+        return $this->hasMany(Message::class);
+    }
+    
+    public function chats(): BelongsToMany
+    {
+        return $this->belongsToMany(Chat::class, 'chat_user');
     }
 
     // Новые методы
@@ -203,9 +254,36 @@ class User extends Authenticatable
         });
     }
 
-    public function savedRoutes()
-{
-    return $this->belongsToMany(Route::class, 'saved_routes', 'user_id', 'route_id')
-                ->withTimestamps();
-}
+    public function isAdmin(): bool
+    {
+        return $this->is_admin === true || $this->role === 'admin';
+    }
+
+    public function getRankAttribute(): string
+    {
+        $ranks = [
+            [0, 'Новичок'],
+            [100, 'Путешественник'],
+            [500, 'Искатель приключений'],
+            [1000, 'Эксперт'],
+            [2000, 'Мастер маршрутов'],
+            [5000, 'Легенда дорог']
+        ];
+        
+        $userExp = $this->experience;
+        $currentRank = 'Новичок';
+        
+        foreach ($ranks as $rank) {
+            if ($userExp >= $rank[0]) {
+                $currentRank = $rank[1];
+            }
+        }
+        
+        return $currentRank;
+    }
+    
+    public function isModerator(): bool
+    {
+        return $this->role === 'moderator';
+    }
 }
