@@ -51,7 +51,8 @@
                     <option value="collection" {{ request('type') == 'collection' ? 'selected' : '' }}>Коллекция</option>
                     <option value="challenge" {{ request('type') == 'challenge' ? 'selected' : '' }}>Испытание</option>
                     <option value="weekend" {{ request('type') == 'weekend' ? 'selected' : '' }}>Выходной</option>
-                    <option value="learning" {{ request('type') == 'learning' ? 'selected' : '' }}>Обучение</option>
+                    <option value="story" {{ request('type') == 'story' ? 'selected' : '' }}>Сюжетный</option>
+                    <option value="user" {{ request('type') == 'user' ? 'selected' : '' }}>Пользовательский</option>
                 </select>
             </div>
             
@@ -88,7 +89,7 @@
                         Тип / Сложность
                     </th>
                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Маршруты
+                        Задания / Маршруты
                     </th>
                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Награды
@@ -129,17 +130,43 @@
                             </div>
                         </div>
                     </td>
-                    <td class="px-6 py-4">
-                        <div class="text-sm text-gray-900">{{ $quest->routes_count ?? $quest->routes->count() }} маршрутов</div>
-                        @if($quest->routes->count() > 0)
-                            <div class="text-xs text-gray-500">
-                                {{ $quest->routes->take(2)->pluck('title')->join(', ') }}
-                                @if($quest->routes->count() > 2)
-                                    и ещё {{ $quest->routes->count() - 2 }}
-                                @endif
-                            </div>
-                        @endif
-                    </td>
+   <!-- Заменяем строки 133-148 на: -->
+<td class="px-6 py-4">
+    <div class="space-y-2">
+        <div>
+            <div class="flex items-center">
+                <i class="fas fa-tasks text-purple-500 mr-1 text-sm"></i>
+                <span class="text-sm text-gray-900 font-medium">
+                    {{ $quest->tasks_count ?? 0 }} заданий
+                </span>
+                <a href="{{ route('admin.quests.tasks.index', $quest) }}" 
+                   class="ml-2 text-xs text-blue-600 hover:text-blue-800 hover:underline">
+                    управление
+                </a>
+            </div>
+        </div>
+        <div>
+            <div class="flex items-center">
+                <i class="fas fa-route text-green-500 mr-1 text-sm"></i>
+                <span class="text-sm text-gray-900">{{ $quest->routes_count ?? 0 }} маршрутов</span>
+            </div>
+            @php
+                $routeCount = $quest->routes_count ?? 0;
+            @endphp
+            @if($routeCount > 0 && $quest->routes && $quest->routes->count() > 0)
+                <div class="text-xs text-gray-500 mt-1">
+                    @php
+                        $routeTitles = $quest->routes->take(2)->pluck('title')->toArray();
+                    @endphp
+                    {{ implode(', ', $routeTitles) }}
+                    @if($routeCount > 2)
+                        и ещё {{ $routeCount - 2 }}
+                    @endif
+                </div>
+            @endif
+        </div>
+    </div>
+</td>
                     <td class="px-6 py-4">
                         <div class="space-y-1">
                             <div class="flex items-center">
@@ -154,7 +181,7 @@
                             @endif
                             @if($quest->badge)
                                 <div class="flex items-center">
-                                    <i class="{{ $quest->badge->icon }} text-blue-500 mr-1"></i>
+                                    <i class="{{ $quest->badge->icon ?? 'fas fa-medal' }} text-blue-500 mr-1"></i>
                                     <span class="text-sm">{{ $quest->badge->name }}</span>
                                 </div>
                             @endif
@@ -184,40 +211,67 @@
                         </div>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="flex space-x-2">
-                            <a href="{{ route('admin.quests.show', $quest) }}" 
-                               class="text-blue-600 hover:text-blue-900" title="Просмотр">
-                                <i class="fas fa-eye"></i>
-                            </a>
-                            <a href="{{ route('admin.quests.edit', $quest) }}" 
-                               class="text-green-600 hover:text-green-900" title="Редактировать">
-                                <i class="fas fa-edit"></i>
-                            </a>
-                            <a href="{{ route('admin.quests.stats', $quest) }}" 
-                               class="text-purple-600 hover:text-purple-900" title="Статистика">
-                                <i class="fas fa-chart-bar"></i>
-                            </a>
-                            <form action="{{ route('admin.quests.toggle-status', $quest) }}" 
-                                  method="POST" 
-                                  class="inline"
-                                  onsubmit="return confirm('{{ $quest->is_active ? 'Деактивировать' : 'Активировать' }} квест?')">
-                                @csrf
-                                <button type="submit" 
-                                        class="text-{{ $quest->is_active ? 'yellow' : 'green' }}-600 hover:text-{{ $quest->is_active ? 'yellow' : 'green' }}-900"
-                                        title="{{ $quest->is_active ? 'Деактивировать' : 'Активировать' }}">
-                                    <i class="fas fa-{{ $quest->is_active ? 'pause' : 'play' }}"></i>
-                                </button>
-                            </form>
-                            <form action="{{ route('admin.quests.destroy', $quest) }}" 
-                                  method="POST" 
-                                  class="inline"
-                                  onsubmit="return confirm('Удалить квест? Это действие нельзя отменить.')">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" class="text-red-600 hover:text-red-900" title="Удалить">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </form>
+                        <div class="flex flex-col space-y-2">
+                            <!-- Основные действия -->
+                            <div class="flex space-x-2">
+                                <a href="{{ route('admin.quests.show', $quest) }}" 
+                                   class="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50" 
+                                   title="Просмотр">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="{{ route('admin.quests.edit', $quest) }}" 
+                                   class="text-green-600 hover:text-green-900 p-1 rounded hover:bg-green-50" 
+                                   title="Редактировать">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <a href="{{ route('admin.quests.stats', $quest) }}" 
+                                   class="text-purple-600 hover:text-purple-900 p-1 rounded hover:bg-purple-50" 
+                                   title="Статистика">
+                                    <i class="fas fa-chart-bar"></i>
+                                </a>
+                                <form action="{{ route('admin.quests.toggle-status', $quest) }}" 
+                                      method="POST" 
+                                      class="inline"
+                                      onsubmit="return confirm('{{ $quest->is_active ? 'Деактивировать' : 'Активировать' }} квест?')">
+                                    @csrf
+                                    <button type="submit" 
+                                            class="text-{{ $quest->is_active ? 'yellow' : 'green' }}-600 hover:text-{{ $quest->is_active ? 'yellow' : 'green' }}-900 p-1 rounded hover:bg-{{ $quest->is_active ? 'yellow' : 'green' }}-50"
+                                            title="{{ $quest->is_active ? 'Деактивировать' : 'Активировать' }}">
+                                        <i class="fas fa-{{ $quest->is_active ? 'pause' : 'play' }}"></i>
+                                    </button>
+                                </form>
+                                <form action="{{ route('admin.quests.destroy', $quest) }}" 
+                                      method="POST" 
+                                      class="inline"
+                                      onsubmit="return confirm('Удалить квест? Это действие нельзя отменить.')">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" 
+                                            class="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50" 
+                                            title="Удалить">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                            
+                            <!-- Действия с заданиями -->
+                            <div class="flex space-x-1">
+                                <a href="{{ route('admin.quests.tasks.create', $quest) }}" 
+                                   class="text-xs bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-2 py-1 rounded flex items-center"
+                                   title="Добавить задание">
+                                    <i class="fas fa-plus mr-1 text-xs"></i>
+                                    <span>Добавить задание</span>
+                                </a>
+                                
+                                @if($quest->tasks_count > 0)
+                                <a href="{{ route('admin.quests.tasks.index', $quest) }}" 
+                                   class="text-xs bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white px-2 py-1 rounded flex items-center"
+                                   title="Все задания">
+                                    <i class="fas fa-list mr-1 text-xs"></i>
+                                    <span>Все задания</span>
+                                </a>
+                                @endif
+                            </div>
                         </div>
                     </td>
                 </tr>

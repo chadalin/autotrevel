@@ -21,6 +21,7 @@ class Quest extends Model
         'reward_coins',
         'badge_id',
         'conditions',
+        'quest_data', // JSON с заданиями и контентом
         'requirements',
         'sort_order',
         'is_active',
@@ -32,11 +33,13 @@ class Quest extends Model
         'cover_image',
         'icon',
         'color',
+        'chat_id' ,// ID чата для участников квеста
     ];
 
     protected $casts = [
         'conditions' => 'array',
         'requirements' => 'array',
+        'quest_data' => 'array',
         'is_active' => 'boolean',
         'is_featured' => 'boolean',
         'is_repeatable' => 'boolean',
@@ -211,10 +214,7 @@ class Quest extends Model
             });
     }
 
-    public function scopeFeatured($query)
-    {
-        return $query->where('is_featured', true);
-    }
+    
 
     public function scopeByType($query, $type)
     {
@@ -288,4 +288,87 @@ class Quest extends Model
 
     return true;
 }
+
+ public function users()
+    {
+        return $this->belongsToMany(User::class, 'user_quests')
+            ->withPivot('status', 'progress_current', 'progress_target', 'completed_data', 'started_at', 'completed_at', 'attempts_count')
+            ->withTimestamps();
+    } 
+    public function chat()
+    {
+        return $this->belongsTo(Chat::class, 'chat_id');
+    }
+     public function getCurrentTasksAttribute()
+    {
+        return $this->quest_data['tasks'] ?? [];
+    }
+
+    public function getTask($taskId)
+    {
+        $tasks = $this->current_tasks;
+        foreach ($tasks as $task) {
+            if ($task['id'] == $taskId) {
+                return $task;
+            }
+        }
+        return null;
+    }
+
+    public function isActive()
+    {
+        $now = now();
+        $isWithinDates = true;
+        
+        if ($this->start_date && $this->start_date > $now) {
+            $isWithinDates = false;
+        }
+        
+        if ($this->end_date && $this->end_date < $now) {
+            $isWithinDates = false;
+        }
+        
+        return $this->is_active && $isWithinDates;
+    }
+
+    
+
+    public function scopeFeatured($query)
+    {
+        return $query->where('is_featured', true);
+    }
+
+    // Статистика квеста
+    public function getStatisticsAttribute()
+    {
+        $totalAttempts = $this->users()->count();
+        $completed = $this->users()->wherePivot('status', 'completed')->count();
+        $successRate = $totalAttempts > 0 ? round(($completed / $totalAttempts) * 100) : 0;
+        
+        return [
+            'attempts' => $totalAttempts,
+            'completed' => $completed,
+            'success_rate' => $successRate,
+            'avg_completion_time' => $this->getAverageCompletionTime(),
+        ];
+    }
+
+    private function getAverageCompletionTime()
+    {
+        $completedQuests = $this->users()
+            ->wherePivot('status', 'completed')
+            ->wherePivot('completed_at', '!=', null)
+            ->wherePivot('started_at', '!=', null)
+            ->get()
+            ->map(function($user) {
+                $started = \Carbon\Carbon::parse($user->pivot->started_at);
+                $completed = \Carbon\Carbon::parse($user->pivot->completed_at);
+                return $started->diffInHours($completed);
+            });
+        
+        return $completedQuests->count() > 0 ? 
+            round($completedQuests->avg(), 1) . ' ч' : 
+            'Нет данных';
+    }
+
 }

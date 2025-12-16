@@ -13,6 +13,8 @@ use App\Http\Controllers\TestController;
 use App\Http\Controllers\DatabaseSchemaController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\NavigationController;
+
+use App\Http\Controllers\QuestInteractiveController;
 // Главная страница
 Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::get('/search', [HomeController::class, 'search'])->name('search');
@@ -123,6 +125,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::delete('/quests/{quest}', [\App\Http\Controllers\Admin\QuestController::class, 'destroy'])->name('quests.destroy');
     Route::post('/quests/{quest}/toggle-status', [\App\Http\Controllers\Admin\QuestController::class, 'toggleStatus'])->name('quests.toggle-status');
     Route::get('/quests/{quest}/stats', [\App\Http\Controllers\Admin\QuestController::class, 'stats'])->name('quests.stats');
+    Route::post('/quests/{quest}/progress', [QuestController::class, 'updateProgress'])->name('quests.progress.update');
 });
 
 // Чат маршруты
@@ -271,3 +274,62 @@ Route::get('/database-schema', [DatabaseSchemaController::class, 'index']);
 Route::post('/test-route/create', [NavigationController::class, 'createTestRoute'])
     ->name('test.route.create')
     ->middleware('auth');
+
+    // Интерактивные квесты
+Route::middleware(['auth'])->prefix('quests')->name('quests.')->group(function () {
+    // Основные маршруты
+    Route::get('/', [QuestController::class, 'index'])->name('index');
+    Route::get('/my', [QuestController::class, 'myQuests'])->name('my');
+    Route::get('/{slug}', [QuestController::class, 'show'])->name('show');
+    Route::post('/{quest}/start', [QuestController::class, 'start'])->name('start');
+    
+    // Интерактивные задания
+    Route::prefix('interactive/{questSlug}')->name('interactive.')->group(function () {
+        Route::get('/', [QuestInteractiveController::class, 'showCurrentTask'])->name('task');
+        Route::post('/task/{taskId}/submit', [QuestInteractiveController::class, 'submitAnswer'])->name('submit');
+        Route::post('/task/{taskId}/hint', [QuestInteractiveController::class, 'getHint'])->name('hint');
+        Route::post('/task/{taskId}/location', [QuestInteractiveController::class, 'checkLocation'])->name('check.location');
+        Route::post('/pause', [QuestInteractiveController::class, 'pauseQuest'])->name('pause');
+        Route::post('/resume', [QuestInteractiveController::class, 'resumeQuest'])->name('resume');
+        Route::post('/complete', [QuestInteractiveController::class, 'completeQuest'])->name('complete.early');
+        Route::get('/chat', [QuestInteractiveController::class, 'questChat'])->name('chat');
+    });
+    
+    // Лидерборд и достижения
+    Route::get('/leaderboard', [QuestController::class, 'leaderboard'])->name('leaderboard');
+    Route::get('/achievements', [QuestController::class, 'achievements'])->name('achievements');
+    Route::get('/badges', [QuestController::class, 'badges'])->name('badges');
+});
+
+
+   // Маршруты для профилей пользователей
+Route::middleware(['auth'])->prefix('users')->name('users.')->group(function () {
+    Route::get('/{user}', [UserController::class, 'show'])->name('show');
+    Route::get('/{user}/routes', [UserController::class, 'routes'])->name('routes');
+    Route::get('/{user}/achievements', [UserController::class, 'achievements'])->name('achievements');
+    Route::get('/{user}/activity', [UserController::class, 'activity'])->name('activity');
+});
+
+// Чат маршруты
+Route::prefix('chats')->name('chats.')->middleware('auth')->group(function () {
+    Route::get('/create', [ChatController::class, 'create'])->name('create');
+    Route::get('/{chat}', [ChatController::class, 'show'])->name('show');
+     Route::post('/', [ChatController::class, 'store'])->name('store');
+    Route::post('/private/{user}', [ChatController::class, 'createPrivate'])->name('private.create');
+    Route::post('/route/{route}', [ChatController::class, 'createRouteChat'])->name('route.create');
+    Route::post('/{chat}/add-users', [ChatController::class, 'addUsers'])->name('add-users');
+    Route::delete('/{chat}/leave', [ChatController::class, 'leave'])->name('leave');
+    Route::delete('/{chat}', [ChatController::class, 'destroy'])->name('destroy');
+});
+
+// Админ маршруты
+Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
+    // Задания квестов
+    Route::get('/quests/{quest}/tasks', [QuestTaskController::class, 'index'])->name('quests.tasks.index');
+    Route::get('/quests/{quest}/tasks/create', [QuestTaskController::class, 'create'])->name('quests.tasks.create');
+    Route::post('/quests/{quest}/tasks', [QuestTaskController::class, 'store'])->name('quests.tasks.store');
+    Route::get('/quests/{quest}/tasks/{task}/edit', [QuestTaskController::class, 'edit'])->name('quests.tasks.edit');
+    Route::put('/quests/{quest}/tasks/{task}', [QuestTaskController::class, 'update'])->name('quests.tasks.update');
+    Route::delete('/quests/{quest}/tasks/{task}', [QuestTaskController::class, 'destroy'])->name('quests.tasks.destroy');
+    Route::post('/quests/{quest}/tasks/reorder', [QuestTaskController::class, 'reorder'])->name('quests.tasks.reorder');
+});

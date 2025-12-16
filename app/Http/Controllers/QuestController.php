@@ -23,121 +23,179 @@ class QuestController extends Controller
 
     // Список всех квестов
     public function index(Request $request)
-    {
-        $query = Quest::with(['badge', 'routes']);
+{
+    $query = Quest::with(['badge', 'routes', 'users' => function($q) {
+        $q->limit(3); // Берем только 3 последних участника для отображения
+    }]);
 
-        // Фильтры
-        if ($request->has('type') && $request->type) {
-            $query->where('type', $request->type);
-        }
-
-        if ($request->has('difficulty') && $request->difficulty) {
-            $query->where('difficulty', $request->difficulty);
-        }
-
-        if ($request->has('status')) {
-            switch ($request->status) {
-                case 'active':
-                    $query->active();
-                    break;
-                case 'featured':
-                    $query->featured();
-                    break;
-                case 'weekend':
-                    $query->where('type', 'weekend')->active();
-                    break;
-            }
-        }
-
-        // Поиск
-        if ($request->has('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('title', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
-            });
-        }
-
-        // Сортировка
-        $sort = $request->get('sort', 'newest');
-        switch ($sort) {
-            case 'popular':
-                $query->withCount('userQuests')->orderBy('user_quests_count', 'desc');
-                break;
-            case 'difficulty':
-                $query->orderByRaw("FIELD(difficulty, 'easy', 'medium', 'hard', 'expert')");
-                break;
-            case 'rewards':
-                $query->orderBy('reward_exp', 'desc');
-                break;
-            default:
-                $query->latest();
-        }
-
-        $quests = $query->paginate(12);
-        
-        // Статистика для пользователя
-        $userStats = null;
-        $activeQuests = [];
-        $recommendedQuests = [];
-        
-        if (Auth::check()) {
-            $user = Auth::user();
-            $userStats = $user->stats;
-            $activeQuests = $user->getActiveQuests();
-            $recommendedQuests = $this->questService->getRecommendedQuests($user, 3);
-        }
-
-        return view('quests.index', compact(
-            'quests', 
-            'userStats', 
-            'activeQuests', 
-            'recommendedQuests',
-            'sort'
-        ));
+    // Фильтры
+    if ($request->has('type') && $request->type) {
+        $query->where('type', $request->type);
     }
 
-    // Детальная страница квеста
-    public function show($slug)
-    {
-        $quest = Quest::with([
-            'badge',
-            'routes.user',
-            'routes.tags',
-            'routes.points'
-        ])->where('slug', $slug)->firstOrFail();
+    if ($request->has('difficulty') && $request->difficulty) {
+        $query->where('difficulty', $request->difficulty);
+    }
 
-        $userProgress = null;
-        $canStart = false;
+    if ($request->has('status')) {
+        switch ($request->status) {
+            case 'active':
+                $query->where('is_active', true)
+                    ->where(function($q) {
+                        $now = now();
+                        $q->whereNull('start_date')
+                          ->orWhere('start_date', '<=', $now);
+                    })
+                    ->where(function($q) {
+                        $now = now();
+                        $q->whereNull('end_date')
+                          ->orWhere('end_date', '>=', $now);
+                    });
+                break;
+            case 'featured':
+                $query->where('is_featured', true);
+                break;
+            case 'weekend':
+                $query->where('type', 'weekend')
+                    ->where('is_active', true);
+                break;
+        }
+    }
+
+    // Поиск
+    if ($request->has('search')) {
+        $search = $request->search;
+        $query->where(function ($q) use ($search) {
+            $q->where('title', 'like', "%{$search}%")
+              ->orWhere('description', 'like', "%{$search}%")
+              ->orWhere('short_description', 'like', "%{$search}%");
+        });
+    }
+
+    // Сортировка
+    $sort = $request->get('sort', 'newest');
+    switch ($sort) {
+        case 'popular':
+            // Сортировка по количеству участников
+            $query->withCount('users')->orderBy('users_count', 'desc');
+            break;
+        case 'difficulty':
+            $query->orderByRaw("FIELD(difficulty, 'easy', 'medium', 'hard', 'expert')");
+            break;
+        case 'rewards':
+            $query->orderBy('reward_exp', 'desc');
+            break;
+        default:
+            $query->latest();
+    }
+
+    $quests = $query->paginate(12);
+    
+    // Статистика для пользователя
+    $userStats = null;
+    $activeQuests = [];
+    $recommendedQuests = [];
+    
+    if (Auth::check()) {
+        $user = Auth::user();
+        $userStats = $user->stats;
         
-        if (Auth::check()) {
-            $user = Auth::user();
-            $userProgress = $quest->getProgressForUser($user);
-            $canStart = $this->questService->canStartQuest($user, $quest);
+        // Активные квесты пользователя
+        $activeQuests = $user->userQuests()
+            ->with('quest')
+            ->whereIn('status', ['in_progress', 'paused'])
+            ->limit(5)
+            ->get();
             
-            // Обновляем статистику активности
+        // Рекомендуемые квесты
+        $questService = app(QuestService::class);
+        $recommendedQuests = $questService->getRecommendedQuests($user, 3);
+    }
+
+    return view('quests.index', compact(
+        'quests', 
+        'userStats', 
+        'activeQuests', 
+        'recommendedQuests',
+        'sort'
+    ));
+}
+    // Детальная страница квеста
+   public function show($slug)
+{
+    $quest = Quest::with([
+        'badge',
+        'routes.user',
+        'routes.tags',
+        'routes.pointsOfInterest',
+        'users' => function($query) {
+            $query->limit(5)->orderBy('user_quests.completed_at', 'desc');
+        }
+    ])->where('slug', $slug)->firstOrFail();
+
+    $userProgress = null;
+    $canStart = false;
+    
+    if (Auth::check()) {
+        $user = Auth::user();
+        $userProgress = $quest->users()->where('user_id', $user->id)->first();
+        $questService = app(QuestService::class);
+        $canStart = $questService->canStartQuest($user, $quest);
+        
+        // Обновляем статистику активности
+        if ($user->stats) {
             $user->stats->recordActivity();
         }
-
-        // Статистика квеста
-        $statistics = $this->questService->getQuestStatistics($quest);
-
-        // Похожие квесты
-        $similarQuests = Quest::where('type', $quest->type)
-            ->where('id', '!=', $quest->id)
-            ->where('difficulty', $quest->difficulty)
-            ->active()
-            ->limit(4)
-            ->get();
-
-        return view('quests.show', compact(
-            'quest',
-            'userProgress',
-            'canStart',
-            'statistics',
-            'similarQuests'
-        ));
     }
+
+    // Статистика квеста
+    $statistics = $this->getQuestStatistics($quest);
+
+    // Похожие квесты
+    $similarQuests = Quest::where('type', $quest->type)
+        ->where('id', '!=', $quest->id)
+        ->where('difficulty', $quest->difficulty)
+        ->where('is_active', true)
+        ->limit(4)
+        ->get();
+
+    return view('quests.show', compact(
+        'quest',
+        'userProgress',
+        'canStart',
+        'statistics',
+        'similarQuests'
+    ));
+}
+
+private function getQuestStatistics(Quest $quest)
+{
+    $totalParticipants = $quest->users()->count();
+    $completed = $quest->users()->wherePivot('status', 'completed')->count();
+    $successRate = $totalParticipants > 0 ? round(($completed / $totalParticipants) * 100) : 0;
+    
+    // Среднее время выполнения
+    $avgTime = $quest->users()
+        ->wherePivot('status', 'completed')
+        ->wherePivot('started_at', '!=', null)
+        ->wherePivot('completed_at', '!=', null)
+        ->get()
+        ->map(function($user) {
+            $start = Carbon::parse($user->pivot->started_at);
+            $end = Carbon::parse($user->pivot->completed_at);
+            return $start->diffInHours($end);
+        })
+        ->avg();
+    
+    return [
+        'total_participants' => $totalParticipants,
+        'completed' => $completed,
+        'success_rate' => $successRate,
+        'avg_completion_time' => $avgTime ? round($avgTime, 1) . ' ч' : 'Нет данных',
+        'active_participants' => $quest->users()->wherePivot('status', 'in_progress')->count(),
+        'routes_count' => $quest->routes()->count(),
+    ];
+}
 
     // Начать квест
     public function start(Request $request, Quest $quest)
