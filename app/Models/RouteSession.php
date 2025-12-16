@@ -2,121 +2,164 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class RouteSession extends Model
 {
-    protected $table = 'route_sessions';
-    
+    use HasFactory;
+
     protected $fillable = [
         'user_id',
         'route_id',
-        'quest_id',
         'status',
-        'started_at',
-        'paused_at',
-        'completed_at',
-        'ended_at',
+        'quest_id',
         'current_checkpoint_id',
         'average_speed',
         'total_distance',
-        'earned_xp'
+        'earned_xp',
+        'started_at',
+        'paused_at',
+        'completed_at',
+        'ended_at'
     ];
-    
+
     protected $casts = [
         'started_at' => 'datetime',
         'paused_at' => 'datetime',
         'completed_at' => 'datetime',
         'ended_at' => 'datetime',
+        'average_speed' => 'decimal:2',
+        'total_distance' => 'decimal:2'
     ];
-    
-    public function user(): BelongsTo
+
+    public function user()
     {
         return $this->belongsTo(User::class);
     }
-    
-    public function route(): BelongsTo
+
+    public function route()
     {
         return $this->belongsTo(TravelRoute::class);
     }
-    
-    public function quest(): BelongsTo
+
+    public function quest()
     {
-        return $this->belongsTo(Quest::class, 'quest_id');
+        return $this->belongsTo(Quest::class);
     }
-    
-    // Исправляем: возвращаем коллекцию, даже если нет quest_id
-    public function quests()
-    {
-        if ($this->quest_id) {
-            // Если есть конкретный quest_id, возвращаем коллекцию с одним квестом
-            return collect([$this->quest]);
-        }
-        
-        // Иначе возвращаем пустую коллекцию
-        return collect();
-    }
-    
-    // ЯВНО указываем имя внешнего ключа
-    public function checkpoints(): HasMany
-    {
-        return $this->hasMany(RouteCheckpoint::class, 'session_id');
-    }
-    
-    public function currentCheckpoint(): BelongsTo
+
+    public function currentCheckpoint()
     {
         return $this->belongsTo(RouteCheckpoint::class, 'current_checkpoint_id');
     }
-    
-    public function completion()
+
+    public function completions()
     {
-        return $this->hasOne(RouteCompletion::class, 'session_id');
+        return $this->hasMany(RouteCompletion::class);
     }
-    
-    // Методы
+
+    // Вместо прямого отношения к checkpoint-ам используем связь через route
+    public function routeCheckpoints()
+    {
+        return $this->route->checkpoints();
+    }
+
+    public function getProgressPercentage(): int
+    {
+        $total = $this->route->checkpoints()->count();
+        if ($total === 0) {
+            return 0;
+        }
+
+        // Получаем количество пройденных чекпоинтов
+        // Предполагаем, что чекпоинты пройдены по порядку
+        $currentOrder = $this->currentCheckpoint ? $this->currentCheckpoint->order : 0;
+        return min(100, intval(($currentOrder / $total) * 100));
+    }
+
+    public function completeCheckpoint(RouteCheckpoint $checkpoint)
+    {
+        // Обновляем текущий чекпоинт
+        $this->update(['current_checkpoint_id' => $checkpoint->id]);
+        
+        // Если это последний чекпоинт, завершаем сессию
+        $lastCheckpoint = $this->route->checkpoints()->orderBy('order', 'desc')->first();
+        if ($lastCheckpoint && $checkpoint->id === $lastCheckpoint->id) {
+            $this->complete();
+        }
+    }
+
+    public function complete()
+    {
+        $this->update([
+            'status' => 'completed',
+            'completed_at' => now(),
+            'ended_at' => now()
+        ]);
+
+        // Создаем запись о завершении маршрута
+        RouteCompletion::create([
+            'user_id' => $this->user_id,
+            'route_id' => $this->route_id,
+            'session_id' => $this->id,
+            'quest_id' => $this->quest_id,
+            'completed_at' => now(),
+            'duration_seconds' => $this->started_at ? $this->started_at->diffInSeconds(now()) : 0,
+            'total_distance' => $this->total_distance,
+            'earned_xp' => $this->earned_xp,
+            'verification_status' => 'pending'
+        ]);
+    }
+
     public function isActive(): bool
     {
         return $this->status === 'active';
     }
-    
+
     public function isPaused(): bool
     {
         return $this->status === 'paused';
     }
-    
+
     public function isCompleted(): bool
     {
         return $this->status === 'completed';
     }
-    
-    public function getProgressPercentage(): int
+
+    public function isCancelled(): bool
     {
-        $total = $this->checkpoints()->count();
-        $completed = $this->checkpoints()->where('status', 'completed')->count();
-        
-        return $total > 0 ? round(($completed / $total) * 100) : 0;
+        return $this->status === 'cancelled';
     }
-    
-    public function getElapsedTime(): string
+
+    public function start()
     {
-        if (!$this->started_at) {
-            return '00:00';
-        }
-        
-        $end = $this->completed_at ?: $this->paused_at ?: now();
-        
-        $diff = $this->started_at->diff($end);
-        
-        $hours = $diff->h + ($diff->days * 24);
-        $minutes = $diff->i;
-        
-        return sprintf('%02d:%02d', $hours, $minutes);
+        $this->update([
+            'status' => 'active',
+            'started_at' => now()
+        ]);
     }
-    
-    public function getRemainingCheckpointsCount(): int
+
+    public function pause()
     {
-        return $this->checkpoints()->whereIn('status', ['pending', 'active'])->count();
+        $this->update([
+            'status' => 'paused',
+            'paused_at' => now()
+        ]);
+    }
+
+    public function resume()
+    {
+        $this->update([
+            'status' => 'active',
+            'paused_at' => null
+        ]);
+    }
+
+    public function cancel()
+    {
+        $this->update([
+            'status' => 'cancelled',
+            'ended_at' => now()
+        ]);
     }
 }

@@ -6,70 +6,89 @@ use App\Models\Chat;
 use App\Models\Message;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 
 class MessageController extends Controller
 {
-    public function store(Request $request, Chat $chat)
+    public function store(Chat $chat, Request $request)
     {
-        $this->authorize('send', $chat);
+        $user = Auth::user();
         
-        $request->validate([
-            'content' => 'required|string|max:5000',
-            'attachment' => 'nullable|file|max:10240',
+        // Проверяем, есть ли пользователь в чате
+        if (!$chat->users()->where('user_id', $user->id)->exists()) {
+            abort(403, 'У вас нет доступа к этому чату');
+        }
+        
+        $validated = $request->validate([
+            'content' => 'required_without:attachment|string|max:2000',
+            'attachment' => 'nullable|file|max:10240', // 10MB
         ]);
 
-        $message = new Message([
-            'content' => $request->content,
-            'user_id' => Auth::id(),
-        ]);
+        $messageData = [
+            'user_id' => $user->id,
+            'content' => $validated['content'] ?? null,
+        ];
 
         if ($request->hasFile('attachment')) {
-            $path = $request->file('attachment')->store('attachments', 'public');
-            $message->attachment = $path;
+            $path = $request->file('attachment')->store('chat_attachments', 'public');
+            $messageData['attachment'] = $path;
         }
 
-        $chat->messages()->save($message);
-        $chat->touch(); // Обновляем updated_at чата
+        $message = $chat->messages()->create($messageData);
 
-        // Реальное время - отправка через WebSocket/Socket.io
-        // broadcast(new NewMessage($message))->toOthers();
+        // Обновляем время последнего сообщения в чате
+        $chat->touch();
 
-        return response()->json([
-            'success' => true,
-            'message' => $message->load('user'),
-        ]);
-    }
-
-    public function update(Request $request, Message $message)
-    {
-        $this->authorize('update', $message);
-        
-        $request->validate([
-            'content' => 'required|string|max:5000',
+        // Обновляем время last_read_at для отправителя
+        $chat->users()->updateExistingPivot($user->id, [
+            'last_read_at' => now()
         ]);
 
-        $message->update(['content' => $request->content]);
+        if ($request->ajax()) {
+            return response()->json([
+                'message' => $message->load('user'),
+                'html' => view('chats.partials.message', compact('message'))->render()
+            ]);
+        }
 
-        return response()->json([
-            'success' => true,
-            'message' => $message,
-        ]);
+        return back()->with('success', 'Сообщение отправлено');
     }
 
     public function destroy(Message $message)
     {
-        $this->authorize('delete', $message);
+        $user = Auth::user();
+        
+        // Проверяем, что сообщение принадлежит пользователю
+        if ($message->user_id !== $user->id && $user->role !== 'admin') {
+            abort(403, 'Вы не можете удалить это сообщение');
+        }
+        
+        // Удаляем вложение если есть
+        if ($message->attachment) {
+            Storage::disk('public')->delete($message->attachment);
+        }
+        
         $message->delete();
 
-        return response()->json(['success' => true]);
-    }
-
-    public function markAsRead(Message $message)
-    {
-        if ($message->chat->users->contains(Auth::id())) {
-            $message->markAsRead();
+        if (request()->ajax()) {
+            return response()->json(['success' => true]);
         }
 
+        return back()->with('success', 'Сообщение удалено');
+    }
+
+    public function markAsRead(Chat $chat)
+    {
+        $user = Auth::user();
+        
+        if (!$chat->users()->where('user_id', $user->id)->exists()) {
+            abort(403, 'У вас нет доступа к этому чату');
+        }
+        
+        $chat->users()->updateExistingPivot($user->id, [
+            'last_read_at' => now()
+        ]);
+        
         return response()->json(['success' => true]);
     }
 }

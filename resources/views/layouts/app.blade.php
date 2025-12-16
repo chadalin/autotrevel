@@ -152,6 +152,11 @@
                                 <a href="{{ route('quests.badges') }}" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">
                                     <i class="fas fa-medal mr-2"></i>Значки
                                 </a>
+
+                                <a href="/chats" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">
+                                    <i class="fas fa-medal mr-2"></i>Чаты
+                                </a>
+
                                 @can('admin', App\Models\Quest::class)
                                 <div class="border-t my-1"></div>
                                 <a href="{{ route('quests.admin.index') }}" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">

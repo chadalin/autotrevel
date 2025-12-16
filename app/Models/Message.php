@@ -2,25 +2,28 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Message extends Model
 {
-    use SoftDeletes;
+    use HasFactory;
 
     protected $fillable = [
         'chat_id',
         'user_id',
         'content',
         'attachment',
+        'read_at',
+        'is_system'
     ];
 
     protected $casts = [
         'read_at' => 'datetime',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+        'is_system' => 'boolean'
     ];
-
-    protected $appends = ['is_own'];
 
     public function chat()
     {
@@ -32,15 +35,14 @@ class Message extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function getIsOwnAttribute()
+    public function getAttachmentUrlAttribute()
     {
-        return $this->user_id === auth()->id();
+        return $this->attachment ? asset('storage/' . $this->attachment) : null;
     }
 
-    public function markAsRead()
+    // Проверка, является ли сообщение системным
+    public function getIsSystemAttribute($value)
     {
-        if (!$this->read_at) {
-            $this->update(['read_at' => now()]);
-        }
+        return (bool) $value;
     }
 }

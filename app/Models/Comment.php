@@ -2,34 +2,42 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Comment extends Model
 {
-    use SoftDeletes;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'content',
+        'commentable_type',
+        'commentable_id',
         'user_id',
         'parent_id',
-        'is_pinned',
+        'likes_count',
+        'is_pinned'
     ];
 
     protected $casts = [
         'is_pinned' => 'boolean',
+        'deleted_at' => 'datetime'
     ];
 
-    protected $appends = ['liked_by_auth_user'];
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
 
     public function commentable()
     {
         return $this->morphTo();
     }
 
-    public function user()
+    public function replies()
     {
-        return $this->belongsTo(User::class);
+        return $this->hasMany(Comment::class, 'parent_id');
     }
 
     public function parent()
@@ -37,37 +45,13 @@ class Comment extends Model
         return $this->belongsTo(Comment::class, 'parent_id');
     }
 
-    public function replies()
-    {
-        return $this->hasMany(Comment::class, 'parent_id')->latest();
-    }
-
     public function likes()
     {
-        return $this->belongsToMany(User::class, 'comment_likes')->withTimestamps();
+        return $this->hasMany(CommentLike::class);
     }
 
-    public function getLikedByAuthUserAttribute()
+    public function isLikedBy(User $user)
     {
-        if (!auth()->check()) {
-            return false;
-        }
-        
-        return $this->likes()->where('user_id', auth()->id())->exists();
-    }
-
-    public function toggleLike($userId)
-    {
-        $liked = $this->likes()->where('user_id', $userId)->exists();
-        
-        if ($liked) {
-            $this->likes()->detach($userId);
-            $this->decrement('likes_count');
-        } else {
-            $this->likes()->attach($userId);
-            $this->increment('likes_count');
-        }
-        
-        return !$liked;
+        return $this->likes()->where('user_id', $user->id)->exists();
     }
 }

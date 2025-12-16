@@ -4,26 +4,41 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class RouteCompletion extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'user_id',
         'route_id',
+        'session_id',
         'quest_id',
-        'photo_path',
-        'verification_data',
-        'verified',
-        'verification_notes',
         'completed_at',
+        'duration_seconds',
+        'total_distance',
+        'proof_data',
+        'gps_data',
+        'photos',
+        'comment',
+        'rating',
+        'review',
+        'earned_xp',
+        'earned_coins',
+        'verification_status',
+        'verified_by',
+        'verified_at',
+        'verification_notes'
     ];
 
     protected $casts = [
-        'verification_data' => 'array',
-        'verified' => 'boolean',
         'completed_at' => 'datetime',
+        'verified_at' => 'datetime',
+        'proof_data' => 'array',
+        'gps_data' => 'array',
+        'photos' => 'array',
+        'deleted_at' => 'datetime'
     ];
 
     public function user()
@@ -33,7 +48,12 @@ class RouteCompletion extends Model
 
     public function route()
     {
-        return $this->belongsTo(Route::class);
+        return $this->belongsTo(TravelRoute::class);
+    }
+
+    public function session()
+    {
+        return $this->belongsTo(RouteSession::class);
     }
 
     public function quest()
@@ -41,18 +61,8 @@ class RouteCompletion extends Model
         return $this->belongsTo(Quest::class);
     }
 
-    public function getPhotoUrlAttribute()
+    public function verifier()
     {
-        return $this->photo_path ? Storage::url($this->photo_path) : null;
-    }
-
-    public function getCoordinatesAttribute()
-    {
-        return $this->verification_data['coordinates'] ?? null;
-    }
-
-    public function getAccuracyAttribute()
-    {
-        return $this->verification_data['accuracy'] ?? null;
+        return $this->belongsTo(User::class, 'verified_by');
     }
 }

@@ -5,15 +5,19 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class CheckpointPhoto extends Model
+class CheckpointComment extends Model
 {
     use HasFactory;
 
     protected $fillable = [
         'checkpoint_id',
-        'path',
-        'caption',
-        'uploaded_by'
+        'user_id',
+        'content',
+        'is_system'
+    ];
+
+    protected $casts = [
+        'is_system' => 'boolean'
     ];
 
     public function checkpoint()
@@ -21,13 +25,8 @@ class CheckpointPhoto extends Model
         return $this->belongsTo(RouteCheckpoint::class);
     }
 
-    public function uploader()
+    public function user()
     {
-        return $this->belongsTo(User::class, 'uploaded_by');
-    }
-
-    public function getUrlAttribute()
-    {
-        return asset('storage/' . $this->path);
+        return $this->belongsTo(User::class);
     }
 }

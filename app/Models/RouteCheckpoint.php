@@ -76,4 +76,39 @@ class RouteCheckpoint extends Model
     {
         return $this->photo_path ? Storage::url($this->photo_path) : null;
     }
+
+      public function route()
+    {
+        return $this->belongsTo(TravelRoute::class);
+    }
+
+    public function comments()
+    {
+        return $this->hasMany(CheckpointComment::class);
+    }
+
+    public function photos()
+    {
+        return $this->hasMany(CheckpointPhoto::class);
+    }
+
+    public function getFullTypeAttribute()
+    {
+        $types = [
+            'checkpoint' => 'Контрольная точка',
+            'viewpoint' => 'Смотровая площадка',
+            'rest' => 'Место отдыха',
+            'cafe' => 'Кафе',
+            'hotel' => 'Отель',
+            'attraction' => 'Достопримечательность',
+            'gas_station' => 'Заправка',
+            'camping' => 'Кемпинг',
+            'photo_spot' => 'Фото-точка',
+            'nature' => 'Природа',
+            'historical' => 'Историческое место',
+            'other' => 'Другое'
+        ];
+
+        return $types[$this->type] ?? $this->type;
+    }
 }

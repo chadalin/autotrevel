@@ -9,6 +9,23 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // Сначала создаем недостающие таблицы в правильном порядке
+        $this->createTableIfNotExists('route_checkpoints', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('route_id');
+            $table->string('title');
+            $table->text('description')->nullable();
+            $table->decimal('latitude', 10, 8);
+            $table->decimal('longitude', 11, 8);
+            $table->integer('order')->default(0);
+            $table->string('type')->default('checkpoint');
+            $table->json('metadata')->nullable();
+            $table->timestamps();
+            
+            $table->foreign('route_id')->references('id')->on('travel_routes')->onDelete('cascade');
+            $table->index(['route_id', 'order']);
+        });
+        
         // 1. Исправляем route_sessions - просто добавляем недостающие поля
         if (Schema::hasTable('route_sessions')) {
             Schema::table('route_sessions', function (Blueprint $table) {
@@ -69,11 +86,12 @@ return new class extends Migration
         
         // 2. Добавляем индексы в route_checkpoints если их нет
         if (Schema::hasTable('route_checkpoints')) {
-            $this->addIndexIfNotExists('route_checkpoints', ['session_id', 'status'], 'route_checkpoints_session_id_status_index');
-            $this->addIndexIfNotExists('route_checkpoints', ['session_id', 'order'], 'route_checkpoints_session_id_order_index');
+            $this->addIndexIfNotExists('route_checkpoints', ['route_id', 'order'], 'route_checkpoints_route_id_order_index');
             
             // Добавляем foreign key для point_id если его нет
-            $this->addForeignKeyIfNotExists('route_checkpoints', 'point_id', 'points_of_interest', 'id', 'cascade');
+            if (Schema::hasColumn('route_checkpoints', 'point_id')) {
+                $this->addForeignKeyIfNotExists('route_checkpoints', 'point_id', 'points_of_interest', 'id', 'cascade');
+            }
         }
         
         // 3. Теперь добавляем current_checkpoint_id в route_sessions
@@ -116,7 +134,7 @@ return new class extends Migration
             
             $table->index(['checkpoint_id']);
             
-            // Foreign keys
+            // Foreign keys - БЕЗ проверки, т.к. таблица route_checkpoints уже должна существовать
             $table->foreign('checkpoint_id')->references('id')->on('route_checkpoints')->onDelete('cascade');
             $table->foreign('uploaded_by')->references('id')->on('users')->onDelete('cascade');
         });

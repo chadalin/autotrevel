@@ -2,22 +2,26 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Chat extends Model
 {
-    use SoftDeletes;
+    use HasFactory;
 
     protected $fillable = [
         'name',
         'type',
-        'route_id',
+        'route_id'
     ];
 
     protected $casts = [
         'created_at' => 'datetime',
+        'updated_at' => 'datetime'
     ];
+
+    // Указываем, что модель не использует мягкое удаление
+    public $timestamps = true;
 
     public function users()
     {
@@ -32,30 +36,56 @@ class Chat extends Model
     }
 
     public function route()
-{
-    return $this->belongsTo(\App\Models\Route::class, 'route_id');
-}
-
-    public function getUnreadCountAttribute($userId)
     {
-        return $this->messages()
-            ->where('user_id', '!=', $userId)
-            ->where('created_at', '>', function($query) use ($userId) {
-                $query->select('last_read_at')
-                    ->from('chat_user')
-                    ->where('chat_id', $this->id)
-                    ->where('user_id', $userId);
-            })
-            ->count();
+        return $this->belongsTo(TravelRoute::class, 'route_id');
     }
 
-    public function addParticipant($userId)
+    public function lastMessage()
     {
-        $this->users()->syncWithoutDetaching([$userId => ['joined_at' => now()]]);
+        return $this->hasOne(Message::class)->latestOfMany();
     }
 
-    public function removeParticipant($userId)
+    // Метод для получения непрочитанных сообщений
+    public function scopeWithUnreadCount($query, $userId)
     {
-        $this->users()->detach($userId);
+        return $query->withCount(['messages as unread_messages_count' => function($q) use ($userId) {
+            $q->where('user_id', '!=', $userId)
+              ->whereNull('read_at');
+        }]);
+    }
+
+    // Метод для чатов текущего пользователя
+    public function scopeForUser($query, $userId)
+    {
+        return $query->whereHas('users', function($q) use ($userId) {
+            $q->where('user_id', $userId);
+        });
+    }
+
+    // Метод для получения приватных чатов
+    public function scopePrivate($query, $userId)
+    {
+        return $query->where('type', 'private')
+            ->whereHas('users', function($q) use ($userId) {
+                $q->where('user_id', $userId);
+            });
+    }
+
+    // Метод для получения чатов маршрутов
+    public function scopeRouteChats($query, $userId)
+    {
+        return $query->where('type', 'route')
+            ->whereHas('users', function($q) use ($userId) {
+                $q->where('user_id', $userId);
+            });
+    }
+
+    // Метод для получения групповых чатов
+    public function scopeGroup($query, $userId)
+    {
+        return $query->where('type', 'group')
+            ->whereHas('users', function($q) use ($userId) {
+                $q->where('user_id', $userId);
+            });
     }
 }

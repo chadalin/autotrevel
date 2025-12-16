@@ -13,6 +13,8 @@ use App\Http\Controllers\TestController;
 use App\Http\Controllers\DatabaseSchemaController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\NavigationController;
+use App\Http\Controllers\UserController;
+
 // Главная страница
 Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::get('/search', [HomeController::class, 'search'])->name('search');
@@ -115,9 +117,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
 // Чат маршруты
 Route::prefix('chats')->name('chats.')->middleware('auth')->group(function () {
     Route::get('/', [ChatController::class, 'index'])->name('index');
+    Route::get('/create', [ChatController::class, 'create'])->name('create');
     Route::get('/{chat}', [ChatController::class, 'show'])->name('show');
+     Route::post('/', [ChatController::class, 'store'])->name('store');
     Route::post('/private/{user}', [ChatController::class, 'createPrivate'])->name('private.create');
     Route::post('/route/{route}', [ChatController::class, 'createRouteChat'])->name('route.create');
+    Route::post('/{chat}/add-users', [ChatController::class, 'addUsers'])->name('add-users');
+    Route::delete('/{chat}/leave', [ChatController::class, 'leave'])->name('leave');
     Route::delete('/{chat}', [ChatController::class, 'destroy'])->name('destroy');
 });
 
@@ -258,3 +264,13 @@ Route::get('/database-schema', [DatabaseSchemaController::class, 'index']);
 Route::post('/test-route/create', [NavigationController::class, 'createTestRoute'])
     ->name('test.route.create')
     ->middleware('auth');
+
+
+
+    // Маршруты для профилей пользователей
+Route::middleware(['auth'])->prefix('users')->name('users.')->group(function () {
+    Route::get('/{user}', [UserController::class, 'show'])->name('show');
+    Route::get('/{user}/routes', [UserController::class, 'routes'])->name('routes');
+    Route::get('/{user}/achievements', [UserController::class, 'achievements'])->name('achievements');
+    Route::get('/{user}/activity', [UserController::class, 'activity'])->name('activity');
+});

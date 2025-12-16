@@ -156,10 +156,31 @@ class User extends Authenticatable
         return $this->hasMany(Message::class);
     }
     
-    public function chats(): BelongsToMany
+     public function chats()
     {
-        return $this->belongsToMany(Chat::class, 'chat_user');
+        return $this->belongsToMany(Chat::class, 'chat_user')
+            ->withPivot('joined_at', 'last_read_at')
+            ->withTimestamps();
     }
+
+    public function privateChats()
+    {
+        return $this->chats()->where('type', 'private');
+    }
+
+    public function routeChats()
+    {
+        return $this->chats()->where('type', 'route');
+    }
+
+    public function groupChats()
+    {
+        return $this->chats()->where('type', 'group');
+    }
+
+    
+
+    
 
     // Новые методы
     public function addExperience($amount)
@@ -285,5 +306,34 @@ class User extends Authenticatable
     public function isModerator(): bool
     {
         return $this->role === 'moderator';
+    }
+
+    public function getAvatarUrlAttribute()
+{
+    if ($this->avatar) {
+        return asset('storage/' . $this->avatar);
+    }
+    
+    // Генерация случайного аватара на основе имени
+    $colors = ['FF5733', '33FF57', '3357FF', 'F333FF', '33FFF3', 'FFD733'];
+    $color = $colors[array_rand($colors)];
+    
+    return 'https://ui-avatars.com/api/?name=' . urlencode($this->name) . 
+           '&color=FFFFFF&background=' . $color . '&size=128&bold=true';
+}
+
+ public function travelRoutes()
+    {
+        return $this->hasMany(TravelRoute::class);
+    }
+
+    public function routeCompletions()
+    {
+        return $this->hasMany(RouteCompletion::class);
+    }
+
+     public function comments()
+    {
+        return $this->hasMany(Comment::class);
     }
 }
