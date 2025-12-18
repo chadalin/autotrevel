@@ -866,13 +866,55 @@
 <!-- Модальные окна -->
 @include('navigation.modals')
 @endsection
-
 @push('scripts')
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
         crossorigin=""></script>
 
 <script>
+// Получить CSRF токен для API запросов
+function getCsrfToken() {
+    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
+}
+
+// Обертка для fetch запросов с обработкой ошибок
+async function apiFetch(url, options = {}) {
+    const defaultOptions = {
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': getCsrfToken(),
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        credentials: 'same-origin'
+    };
+    
+    const mergedOptions = {
+        ...defaultOptions,
+        ...options,
+        headers: {
+            ...defaultOptions.headers,
+            ...options.headers
+        }
+    };
+    
+    try {
+        console.log('API Request:', url);
+        const response = await fetch(url, mergedOptions);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        return data;
+        
+    } catch (error) {
+        console.error('API Fetch Error:', error);
+        throw error;
+    }
+}
+
 // Глобальные переменные
 let navigationMap = null;
 let routeLayer = null;
@@ -955,13 +997,13 @@ function createCheckpointMarker(id, lat, lng, order, isActive, isCompleted, titl
     let color, iconHtml;
     
     if (isActive) {
-        color = '#ef4444'; // Красный для активной
+        color = '#ef4444';
         iconHtml = '<i class="fas fa-bullseye"></i>';
     } else if (isCompleted) {
-        color = '#10b981'; // Зеленый для пройденной
+        color = '#10b981';
         iconHtml = '<i class="fas fa-check"></i>';
     } else {
-        color = '#6b7280'; // Серый для неактивной
+        color = '#6b7280';
         iconHtml = `<span style="font-size: 12px;">${order}</span>`;
     }
     
@@ -1013,14 +1055,12 @@ function initGeolocation() {
         return;
     }
     
-    // Запрашиваем геолокацию
     navigator.geolocation.getCurrentPosition(
         showCurrentPosition,
         handleLocationError,
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
     
-    // Начинаем отслеживание
     watchId = navigator.geolocation.watchPosition(
         updateCurrentPosition,
         handleLocationError,
@@ -1056,10 +1096,8 @@ function showCurrentPosition(position) {
         })
     }).addTo(navigationMap);
     
-    // Центрируем карту на текущей позиции
     navigationMap.setView([currentPosition.lat, currentPosition.lng], 15);
     
-    // Показываем информационную панель
     setTimeout(() => {
         showInfoPanel();
     }, 1000);
@@ -1082,8 +1120,6 @@ function updateCurrentPosition(position) {
     }
     
     currentPosition = newPos;
-    
-    // Обновляем расстояние до текущей точки
     updateDistanceToCheckpoint();
 }
 
@@ -1098,12 +1134,11 @@ function updateDistanceToCheckpoint() {
                 {{ $currentCheckpoint->longitude }}
             );
             
-            // Если близко к точке, показываем уведомление
-            if (distance < 0.1) { // 100 метров
+            if (distance < 0.1) {
                 showNotification('Приближение', 'Вы близко к контрольной точке!', 'info');
             }
             
-            if (distance < 0.05) { // 50 метров
+            if (distance < 0.05) {
                 showNotification('Прибытие', 'Вы на месте! Отметьте прибытие.', 'success');
             }
         }
@@ -1112,7 +1147,7 @@ function updateDistanceToCheckpoint() {
 
 // Вычислить расстояние между двумя точками
 function calculateDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371; // Радиус Земли в км
+    const R = 6371;
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
     const a = 
@@ -1148,8 +1183,6 @@ function showInfoPanel() {
     const infoPanel = document.getElementById('infoPanel');
     if (infoPanel) {
         infoPanel.classList.add('visible');
-        
-        // Автоматически скрываем через 10 секунд
         setTimeout(() => {
             hideInfoPanel();
         }, 10000);
@@ -1167,34 +1200,18 @@ function hideInfoPanel() {
 // Показать уведомление
 function showNotification(title, message, type = 'info') {
     const toast = document.getElementById('notificationToast');
+    if (!toast) return;
+    
     const toastTitle = document.getElementById('toastTitle');
     const toastMessage = document.getElementById('toastMessage');
     
-    if (toast && toastTitle && toastMessage) {
-        // Устанавливаем цвет в зависимости от типа
-        const icon = toast.querySelector('i');
-        const iconContainer = toast.querySelector('.bg-blue-100');
-        
-        if (type === 'error') {
-            iconContainer.className = 'w-10 h-10 rounded-full bg-red-100 flex items-center justify-center mr-3 flex-shrink-0';
-            icon.className = 'fas fa-exclamation-circle text-red-600';
-        } else if (type === 'warning') {
-            iconContainer.className = 'w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center mr-3 flex-shrink-0';
-            icon.className = 'fas fa-exclamation-triangle text-yellow-600';
-        } else if (type === 'success') {
-            iconContainer.className = 'w-10 h-10 rounded-full bg-green-100 flex items-center justify-center mr-3 flex-shrink-0';
-            icon.className = 'fas fa-check-circle text-green-600';
-        }
-        
-        toastTitle.textContent = title;
-        toastMessage.textContent = message;
-        toast.classList.add('show');
-        
-        // Автоматически скрываем через 5 секунд
-        setTimeout(() => {
-            hideToast();
-        }, 5000);
-    }
+    if (toastTitle) toastTitle.textContent = title;
+    if (toastMessage) toastMessage.textContent = message;
+    
+    toast.classList.add('show');
+    setTimeout(() => {
+        hideToast();
+    }, 5000);
 }
 
 // Скрыть уведомление
@@ -1207,28 +1224,17 @@ function hideToast() {
 
 // Прибытие на чекпоинт
 function arriveAtCheckpoint(checkpointId) {
-    // Показываем модальное окно для подтверждения
-    showArrivalModal(checkpointId);
-}
-
-// Показать модальное окно прибытия
-function showArrivalModal(checkpointId) {
-    // Здесь можно реализовать модальное окно
-    // Для простоты сразу отправляем запрос
     if (confirm('Подтвердите прибытие на контрольную точку')) {
-        fetch(`/api/checkpoints/${checkpointId}/arrive`, {
+        showLoading('Отмечаем прибытие...');
+        
+        apiFetch(`/api/checkpoints/${checkpointId}/arrive`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                'Accept': 'application/json'
-            }
+            body: JSON.stringify({ comment: 'Прибыл на точку' })
         })
-        .then(response => response.json())
         .then(data => {
             if (data.success) {
                 showNotification('Успех', 'Точка успешно отмечена!', 'success');
-                location.reload();
+                setTimeout(() => location.reload(), 1000);
             } else {
                 showNotification('Ошибка', data.message || 'Не удалось отметить прибытие', 'error');
             }
@@ -1236,26 +1242,23 @@ function showArrivalModal(checkpointId) {
         .catch(error => {
             console.error('Ошибка:', error);
             showNotification('Ошибка', 'Ошибка при отправке запроса', 'error');
-        });
+        })
+        .finally(() => hideLoading());
     }
 }
 
 // Пропустить чекпоинт
 function skipCheckpoint(checkpointId) {
     if (confirm('Вы уверены, что хотите пропустить эту точку?')) {
-        fetch(`/api/checkpoints/${checkpointId}/skip`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                'Accept': 'application/json'
-            }
+        showLoading('Пропускаем точку...');
+        
+        apiFetch(`/api/checkpoints/${checkpointId}/skip`, {
+            method: 'POST'
         })
-        .then(response => response.json())
         .then(data => {
             if (data.success) {
                 showNotification('Успех', 'Точка пропущена', 'info');
-                location.reload();
+                setTimeout(() => location.reload(), 1000);
             } else {
                 showNotification('Ошибка', data.message || 'Не удалось пропустить точку', 'error');
             }
@@ -1263,184 +1266,290 @@ function skipCheckpoint(checkpointId) {
         .catch(error => {
             console.error('Ошибка:', error);
             showNotification('Ошибка', 'Ошибка при отправке запроса', 'error');
-        });
+        })
+        .finally(() => hideLoading());
     }
 }
 
-// Выполнить задание
-// Выполнить задание
-function completeTask(taskId) {
-    // Сначала получаем информацию о задании
-    fetch(`/api/tasks/${taskId}/info`, {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // Показываем модальное окно с заданием
+// ВЫПОЛНИТЬ ЗАДАНИЕ - ОСНОВНАЯ ФУНКЦИЯ
+async function completeTask(taskId) {
+    console.log('Открываем задание ID:', taskId);
+    
+    try {
+        showLoading('Загружаем задание...');
+        
+        const data = await apiFetch(`/api/tasks/${taskId}/info`);
+        
+        if (data.success && data.data && data.data.task) {
             showTaskModal(data.data.task);
         } else {
             showNotification('Ошибка', 'Не удалось загрузить задание', 'error');
         }
-    })
-    .catch(error => {
-        console.error('Ошибка:', error);
-        showNotification('Ошибка', 'Ошибка при загрузке задания', 'error');
-    });
+    } catch (error) {
+        console.error('Ошибка загрузки задания:', error);
+        showNotification('Ошибка', 'Ошибка загрузки задания', 'error');
+        showDemoTaskModal(taskId); // Показываем демо-задание при ошибке
+    } finally {
+        hideLoading();
+    }
 }
 
-// Показать модальное окно с заданием
+// ПОКАЗАТЬ МОДАЛЬНОЕ ОКНО С ЗАДАНИЕМ
 function showTaskModal(task) {
+    console.log('Показываем задание:', task);
+    
+    // Создаем или находим модальное окно
+    let modal = document.getElementById('task-modal');
+    let content = document.getElementById('task-content');
+    
+    if (!modal || !content) {
+        console.error('Элементы модального окна не найдены');
+        createTaskModal(task);
+        return;
+    }
+    
+    // Генерируем контент в зависимости от типа задания
     let modalContent = '';
     
     switch(task.type) {
         case 'text':
-            modalContent = `
-                <div class="text-center">
-                    <div class="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center mx-auto mb-6">
-                        <i class="fas fa-font text-blue-600 text-2xl"></i>
-                    </div>
-                    <h3 class="text-2xl font-bold text-gray-800 mb-4">${task.title}</h3>
-                    <p class="text-gray-600 mb-6">${task.description}</p>
-                    
-                    <div class="mb-6">
-                        <label for="task-answer" class="block text-sm font-medium text-gray-700 mb-2">
-                            Ваш ответ
-                        </label>
-                        <textarea id="task-answer" rows="4"
-                                  class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                  placeholder="Введите ваш ответ..."></textarea>
-                    </div>
-                    
-                    <div class="flex justify-end gap-3">
-                        <button onclick="closeTaskModal()"
-                                class="px-5 py-2.5 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300">
-                            Отмена
-                        </button>
-                        <button onclick="submitTaskAnswer(${task.id})"
-                                class="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg font-bold hover:from-blue-600 hover:to-indigo-700">
-                            <i class="fas fa-check mr-2"></i> Отправить ответ
-                        </button>
-                    </div>
-                </div>
-            `;
+            modalContent = createTextTaskContent(task);
             break;
             
         case 'image':
-            modalContent = `
-                <div class="text-center">
-                    <div class="w-16 h-16 rounded-full bg-purple-100 flex items-center justify-center mx-auto mb-6">
-                        <i class="fas fa-camera text-purple-600 text-2xl"></i>
-                    </div>
-                    <h3 class="text-2xl font-bold text-gray-800 mb-4">${task.title}</h3>
-                    <p class="text-gray-600 mb-6">${task.description}</p>
-                    
-                    <div class="mb-6">
-                        <label for="task-photo" class="block text-sm font-medium text-gray-700 mb-2">
-                            Загрузите фотографию
-                        </label>
-                        <input type="file" id="task-photo" accept="image/*" capture="environment"
-                               class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4
-                                      file:rounded-lg file:border-0 file:text-sm file:font-medium
-                                      file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100">
-                    </div>
-                    
-                    <div class="flex justify-end gap-3">
-                        <button onclick="closeTaskModal()"
-                                class="px-5 py-2.5 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300">
-                            Отмена
-                        </button>
-                        <button onclick="submitTaskPhoto(${task.id})"
-                                class="px-5 py-2.5 bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-lg font-bold hover:from-purple-600 hover:to-pink-700">
-                            <i class="fas fa-upload mr-2"></i> Загрузить фото
-                        </button>
-                    </div>
-                </div>
-            `;
+            modalContent = createImageTaskContent(task);
             break;
             
         case 'quiz':
-            modalContent = `
-                <div class="text-center">
-                    <div class="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-6">
-                        <i class="fas fa-question-circle text-green-600 text-2xl"></i>
-                    </div>
-                    <h3 class="text-2xl font-bold text-gray-800 mb-4">${task.title}</h3>
-                    <p class="text-gray-600 mb-6">${task.description}</p>
-                    
-                    <div class="space-y-3 mb-6" id="quiz-options">
-                        <!-- Опции будут загружены динамически -->
-                    </div>
-                    
-                    <div class="flex justify-end gap-3">
-                        <button onclick="closeTaskModal()"
-                                class="px-5 py-2.5 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300">
-                            Отмена
-                        </button>
-                        <button onclick="submitQuizAnswer(${task.id})"
-                                class="px-5 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg font-bold hover:from-green-600 hover:to-emerald-700">
-                            <i class="fas fa-check mr-2"></i> Ответить
-                        </button>
-                    </div>
-                </div>
-            `;
+            modalContent = createQuizTaskContent(task);
             break;
             
         default:
-            modalContent = `
-                <div class="text-center">
-                    <div class="w-16 h-16 rounded-full bg-yellow-100 flex items-center justify-center mx-auto mb-6">
-                        <i class="fas fa-tasks text-yellow-600 text-2xl"></i>
-                    </div>
-                    <h3 class="text-2xl font-bold text-gray-800 mb-4">${task.title}</h3>
-                    <p class="text-gray-600 mb-6">${task.description}</p>
-                    
-                    <div class="mb-6">
-                        <label for="generic-answer" class="block text-sm font-medium text-gray-700 mb-2">
-                            Ваш ответ
-                        </label>
-                        <input type="text" id="generic-answer"
-                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
-                               placeholder="Введите ответ...">
-                    </div>
-                    
-                    <div class="flex justify-end gap-3">
-                        <button onclick="closeTaskModal()"
-                                class="px-5 py-2.5 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300">
-                            Отмена
-                        </button>
-                        <button onclick="submitGenericAnswer(${task.id})"
-                                class="px-5 py-2.5 bg-gradient-to-r from-yellow-500 to-orange-600 text-white rounded-lg font-bold hover:from-yellow-600 hover:to-orange-700">
-                            <i class="fas fa-check mr-2"></i> Ответить
-                        </button>
-                    </div>
-                </div>
-            `;
+            modalContent = createGenericTaskContent(task);
     }
     
-    document.getElementById('task-content').innerHTML = modalContent;
-    document.getElementById('task-modal').classList.remove('hidden');
+    content.innerHTML = modalContent;
+    modal.classList.remove('hidden');
+    
+    // Инициализируем компоненты после рендеринга
+    setTimeout(() => initTaskModalComponents(task), 100);
+}
+
+// Создать контент для текстового задания
+function createTextTaskContent(task) {
+    return `
+        <div class="p-4">
+            <div class="flex items-center mb-4">
+                <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mr-3">
+                    <i class="fas fa-font text-blue-600"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-bold text-gray-800">${task.title || 'Текстовое задание'}</h3>
+                    <p class="text-sm text-gray-600">${task.description || ''}</p>
+                </div>
+            </div>
+            
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Ваш ответ:</label>
+                <textarea id="task-answer" rows="3" 
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Введите ваш ответ..."></textarea>
+            </div>
+            
+            <div class="flex justify-end gap-2">
+                <button onclick="closeTaskModal()"
+                    class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300">
+                    Отмена
+                </button>
+                <button onclick="submitTaskAnswer(${task.id})"
+                    class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-bold">
+                    <i class="fas fa-paper-plane mr-2"></i>Отправить
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+// Создать контент для задания с фото
+function createImageTaskContent(task) {
+    return `
+        <div class="p-4">
+            <div class="flex items-center mb-4">
+                <div class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center mr-3">
+                    <i class="fas fa-camera text-purple-600"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-bold text-gray-800">${task.title || 'Фото задание'}</h3>
+                    <p class="text-sm text-gray-600">${task.description || ''}</p>
+                </div>
+            </div>
+            
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Выберите фото:</label>
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-purple-400 transition-colors">
+                    <input type="file" id="task-photo" accept="image/*" capture="environment" 
+                        class="hidden" onchange="previewTaskPhoto(this)">
+                    <label for="task-photo" class="cursor-pointer">
+                        <i class="fas fa-camera text-gray-400 text-3xl mb-2"></i>
+                        <p class="text-gray-600">Нажмите для выбора фото</p>
+                        <p class="text-sm text-gray-500">или сделайте снимок</p>
+                    </label>
+                </div>
+                <div id="photo-preview" class="mt-2 hidden">
+                    <img id="preview-image" class="w-full h-48 object-cover rounded-lg">
+                </div>
+            </div>
+            
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Описание (необязательно):</label>
+                <textarea id="photo-description" rows="2"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    placeholder="Добавьте описание к фото..."></textarea>
+            </div>
+            
+            <div class="flex justify-end gap-2">
+                <button onclick="closeTaskModal()"
+                    class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300">
+                    Отмена
+                </button>
+                <button onclick="submitTaskPhoto(${task.id})"
+                    class="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-bold">
+                    <i class="fas fa-upload mr-2"></i>Загрузить
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+// Создать контент для викторины
+function createQuizTaskContent(task) {
+    const options = task.content?.options || ['Вариант А', 'Вариант Б', 'Вариант В', 'Вариант Г'];
+    const question = task.content?.question || 'Выберите правильный вариант:';
+    
+    let optionsHtml = '';
+    options.forEach((option, index) => {
+        optionsHtml += `
+            <label class="flex items-center p-3 border border-gray-200 rounded-lg mb-2 hover:bg-gray-50 cursor-pointer">
+                <input type="radio" name="quiz-option" value="${option}" class="mr-3">
+                <span>${option}</span>
+            </label>
+        `;
+    });
+    
+    return `
+        <div class="p-4">
+            <div class="flex items-center mb-4">
+                <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center mr-3">
+                    <i class="fas fa-question-circle text-green-600"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-bold text-gray-800">${task.title || 'Викторина'}</h3>
+                    <p class="text-sm text-gray-600">${task.description || ''}</p>
+                </div>
+            </div>
+            
+            <div class="mb-4">
+                <p class="font-medium text-gray-700 mb-3">${question}</p>
+                <div id="quiz-options">
+                    ${optionsHtml}
+                </div>
+            </div>
+            
+            <div class="flex justify-end gap-2">
+                <button onclick="closeTaskModal()"
+                    class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300">
+                    Отмена
+                </button>
+                <button onclick="submitQuizAnswer(${task.id})"
+                    class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-bold">
+                    <i class="fas fa-check mr-2"></i>Ответить
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+// Создать контент для общего задания
+function createGenericTaskContent(task) {
+    return `
+        <div class="p-4">
+            <div class="flex items-center mb-4">
+                <div class="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center mr-3">
+                    <i class="fas fa-tasks text-yellow-600"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-bold text-gray-800">${task.title || 'Задание'}</h3>
+                    <p class="text-sm text-gray-600">${task.description || ''}</p>
+                </div>
+            </div>
+            
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Ваш ответ:</label>
+                <input type="text" id="generic-answer"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
+                    placeholder="Введите ответ...">
+            </div>
+            
+            <div class="flex justify-end gap-2">
+                <button onclick="closeTaskModal()"
+                    class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300">
+                    Отмена
+                </button>
+                <button onclick="submitGenericAnswer(${task.id})"
+                    class="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg font-bold">
+                    <i class="fas fa-check mr-2"></i>Готово
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+// Инициализировать компоненты модального окна
+function initTaskModalComponents(task) {
+    // Для заданий с фото добавляем предпросмотр
+    if (task.type === 'image') {
+        const fileInput = document.getElementById('task-photo');
+        if (fileInput) {
+            fileInput.addEventListener('change', function(e) {
+                previewTaskPhoto(this);
+            });
+        }
+    }
+}
+
+// Предпросмотр фото для задания
+function previewTaskPhoto(input) {
+    const preview = document.getElementById('photo-preview');
+    const image = document.getElementById('preview-image');
+    
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        
+        reader.onload = function(e) {
+            image.src = e.target.result;
+            preview.classList.remove('hidden');
+        };
+        
+        reader.readAsDataURL(input.files[0]);
+    }
 }
 
 // Отправить текстовый ответ
-function submitTaskAnswer(taskId) {
-    const answer = document.getElementById('task-answer').value.trim();
+async function submitTaskAnswer(taskId) {
+    const answer = document.getElementById('task-answer')?.value.trim();
     
     if (!answer) {
         showNotification('Внимание', 'Введите ответ', 'warning');
         return;
     }
     
-    submitTaskCompletion(taskId, { answer: answer });
+    await submitTaskCompletion(taskId, { answer });
 }
 
 // Отправить фото
-function submitTaskPhoto(taskId) {
+async function submitTaskPhoto(taskId) {
     const fileInput = document.getElementById('task-photo');
+    const description = document.getElementById('photo-description')?.value || '';
     
     if (!fileInput.files || fileInput.files.length === 0) {
         showNotification('Внимание', 'Выберите фото', 'warning');
@@ -1449,13 +1558,39 @@ function submitTaskPhoto(taskId) {
     
     const formData = new FormData();
     formData.append('photo', fileInput.files[0]);
+    formData.append('description', description);
     formData.append('answer', 'photo_submission');
     
-    submitTaskCompletion(taskId, formData, true);
+    showLoading('Загружаем фото...');
+    
+    try {
+        const response = await fetch(`/api/tasks/${taskId}/complete`, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': getCsrfToken()
+            },
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('Успех', 'Фото загружено!', 'success');
+            closeTaskModal();
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showNotification('Ошибка', data.message || 'Ошибка загрузки', 'error');
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки фото:', error);
+        showNotification('Ошибка', 'Ошибка загрузки фото', 'error');
+    } finally {
+        hideLoading();
+    }
 }
 
 // Отправить ответ на викторину
-function submitQuizAnswer(taskId) {
+async function submitQuizAnswer(taskId) {
     const selectedOption = document.querySelector('input[name="quiz-option"]:checked');
     
     if (!selectedOption) {
@@ -1463,75 +1598,161 @@ function submitQuizAnswer(taskId) {
         return;
     }
     
-    submitTaskCompletion(taskId, { answer: selectedOption.value });
+    await submitTaskCompletion(taskId, { answer: selectedOption.value });
 }
 
 // Отправить общий ответ
-function submitGenericAnswer(taskId) {
-    const answer = document.getElementById('generic-answer').value.trim();
+async function submitGenericAnswer(taskId) {
+    const answer = document.getElementById('generic-answer')?.value.trim();
     
     if (!answer) {
         showNotification('Внимание', 'Введите ответ', 'warning');
         return;
     }
     
-    submitTaskCompletion(taskId, { answer: answer });
+    await submitTaskCompletion(taskId, { answer });
 }
 
 // Отправить выполнение задания
-function submitTaskCompletion(taskId, data, isFormData = false) {
-    const url = `/api/tasks/${taskId}/complete`;
-    const options = {
-        method: 'POST',
-        headers: {
-            'X-CSRF-TOKEN': '{{ csrf_token() }}',
-            'Accept': 'application/json'
+async function submitTaskCompletion(taskId, data) {
+    showLoading('Отправляем ответ...');
+    
+    try {
+        const result = await apiFetch(`/api/tasks/${taskId}/complete`, {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+        
+        if (result.success) {
+            showNotification('Успех', 'Задание выполнено!', 'success');
+            closeTaskModal();
+            
+            // Показываем результат
+            if (result.data && result.data.task) {
+                showTaskResult(result.data.task);
+            }
+            
+            // Обновляем прогресс
+            setTimeout(updateQuestProgress, 1000);
+        } else {
+            showNotification('Ошибка', result.message, 'error');
         }
+    } catch (error) {
+        console.error('Ошибка отправки задания:', error);
+        showNotification('Ошибка', 'Ошибка отправки ответа', 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+// Показать результат выполнения задания
+function showTaskResult(task) {
+    const modalContent = `
+        <div class="p-6 text-center">
+            <div class="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+                <i class="fas fa-check text-green-600 text-2xl"></i>
+            </div>
+            <h3 class="text-xl font-bold text-gray-800 mb-2">Задание выполнено!</h3>
+            <p class="text-gray-600 mb-4">${task.title || 'Задание'}</p>
+            
+            <div class="bg-gray-50 rounded-lg p-4 mb-6">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-gray-600">Награда:</span>
+                    <span class="font-bold text-green-600">+${task.points || 0} очков</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-600">XP:</span>
+                    <span class="font-bold text-blue-600">+${task.xp_earned || 0} XP</span>
+                </div>
+            </div>
+            
+            <button onclick="closeTaskResult()"
+                    class="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-lg font-bold">
+                Продолжить
+            </button>
+        </div>
+    `;
+    
+    const modal = document.getElementById('task-modal');
+    const content = document.getElementById('task-content');
+    
+    if (modal && content) {
+        content.innerHTML = modalContent;
+    }
+}
+
+// Закрыть результат задания
+function closeTaskResult() {
+    closeTaskModal();
+    location.reload();
+}
+
+// Демо-задание для тестирования
+function showDemoTaskModal(taskId) {
+    const demoTask = {
+        id: taskId,
+        title: 'Демо задание: Сфотографируйте вид',
+        description: 'Сделайте фотографию с лучшим видом на этой точке.',
+        type: 'image',
+        points: 10
     };
     
-    if (isFormData) {
-        options.body = data;
-    } else {
-        options.headers['Content-Type'] = 'application/json';
-        options.body = JSON.stringify(data);
+    showTaskModal(demoTask);
+}
+
+// Закрыть модальное окно задания
+function closeTaskModal() {
+    const modal = document.getElementById('task-modal');
+    if (modal) {
+        modal.classList.add('hidden');
     }
-    
-    fetch(url, options)
-        .then(response => response.json())
-        .then(result => {
-            if (result.success) {
-                closeTaskModal();
-                showTaskResult(result.data.task);
-                showNotification('Успех', result.message, 'success');
-                
-                // Обновляем прогресс через 2 секунды
-                setTimeout(() => {
-                    updateQuestProgress();
-                }, 2000);
-            } else {
-                showNotification('Ошибка', result.message, 'error');
-            }
-        })
-        .catch(error => {
-            console.error('Ошибка:', error);
-            showNotification('Ошибка', 'Ошибка при отправке ответа', 'error');
-        });
 }
 
 // Обновить прогресс квестов
 function updateQuestProgress() {
-    // Можно реализовать обновление через AJAX
-    // Для простоты перезагружаем страницу
-    location.reload();
+    // Перезагружаем страницу для обновления данных
+    setTimeout(() => {
+        location.reload();
+    }, 1000);
+}
+
+// Показать загрузку
+function showLoading(message = 'Загрузка...') {
+    let loader = document.getElementById('loading-indicator');
+    
+    if (!loader) {
+        loader = document.createElement('div');
+        loader.id = 'loading-indicator';
+        loader.className = 'fixed inset-0 bg-black bg-opacity-50 z-[1300] flex items-center justify-center';
+        loader.innerHTML = `
+            <div class="bg-white rounded-xl p-8 text-center">
+                <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+                <p class="text-gray-700 font-medium">${message}</p>
+            </div>
+        `;
+        document.body.appendChild(loader);
+    } else {
+        loader.classList.remove('hidden');
+        const messageEl = loader.querySelector('p');
+        if (messageEl) messageEl.textContent = message;
+    }
+}
+
+// Скрыть загрузку
+function hideLoading() {
+    const loader = document.getElementById('loading-indicator');
+    if (loader) {
+        loader.classList.add('hidden');
+    }
 }
 
 // Управление боковой панелью
-document.getElementById('toggle-sidebar').addEventListener('click', () => {
-    document.getElementById('sidebar').classList.add('active');
+document.getElementById('toggle-sidebar')?.addEventListener('click', () => {
+    document.getElementById('sidebar')?.classList.add('active');
 });
 
-document.getElementById('close-sidebar').addEventListener('click', () => {
-    document.getElementById('sidebar').classList.remove('active');
+document.getElementById('close-sidebar')?.addEventListener('click', () => {
+    document.getElementById('sidebar')?.classList.remove('active');
 });
 
 // Переключение вкладок
@@ -1539,18 +1760,16 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         const tabId = btn.dataset.tab;
         
-        // Убираем активный класс у всех кнопок и вкладок
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
         
-        // Добавляем активный класс текущей кнопке и вкладке
         btn.classList.add('active');
-        document.getElementById(`tab-${tabId}`).classList.add('active');
+        document.getElementById(`tab-${tabId}`)?.classList.add('active');
     });
 });
 
 // Кнопка "Мое местоположение"
-document.getElementById('my-location').addEventListener('click', () => {
+document.getElementById('my-location')?.addEventListener('click', () => {
     if (currentPosition && navigationMap) {
         navigationMap.setView([currentPosition.lat, currentPosition.lng], 15);
         showNotification('Геолокация', 'Карта центрирована на вашем местоположении', 'info');
@@ -1563,7 +1782,7 @@ document.getElementById('my-location').addEventListener('click', () => {
 });
 
 // Кнопка "Центрировать маршрут"
-document.getElementById('center-route').addEventListener('click', () => {
+document.getElementById('center-route')?.addEventListener('click', () => {
     if (routeLayer && navigationMap) {
         navigationMap.fitBounds(routeLayer.getBounds(), { padding: [50, 50] });
         showNotification('Карта', 'Карта центрирована на маршруте', 'info');
@@ -1571,9 +1790,11 @@ document.getElementById('center-route').addEventListener('click', () => {
 });
 
 // Кнопка "Скрыть/показать панель"
-document.getElementById('toggle-header').addEventListener('click', () => {
+document.getElementById('toggle-header')?.addEventListener('click', () => {
     const header = document.getElementById('navigationHeader');
     const btn = document.getElementById('toggle-header');
+    
+    if (!header || !btn) return;
     
     if (isHeaderVisible) {
         header.classList.add('hidden');
@@ -1589,7 +1810,6 @@ document.getElementById('toggle-header').addEventListener('click', () => {
     
     isHeaderVisible = !isHeaderVisible;
     
-    // Обновляем размер карты
     setTimeout(() => {
         if (navigationMap) {
             navigationMap.invalidateSize();
@@ -1598,8 +1818,8 @@ document.getElementById('toggle-header').addEventListener('click', () => {
 });
 
 // Кнопка "Сделать фото"
-document.getElementById('take-photo').addEventListener('click', () => {
-    showNotification('Фото', 'Функция съемки фото будет доступна в следующем обновлении', 'info');
+document.getElementById('take-photo')?.addEventListener('click', () => {
+    showNotification('Фото', 'Используйте задание с фото для загрузки снимков', 'info');
 });
 
 // Автоскрытие верхней панели при скролле
@@ -1613,57 +1833,27 @@ window.addEventListener('scroll', () => {
     clearTimeout(scrollTimeout);
     
     if (currentScroll > lastScrollPosition && currentScroll > 100) {
-        // Скроллим вниз
         header.classList.add('hidden');
     } else {
-        // Скроллим вверх
         header.classList.remove('hidden');
     }
     
     lastScrollPosition = currentScroll;
     
-    // Автоматически показываем панель через 3 секунды без скролла
     scrollTimeout = setTimeout(() => {
         header.classList.remove('hidden');
     }, 3000);
 });
 
-// Инициализация при загрузке страницы
-document.addEventListener('DOMContentLoaded', () => {
-    initNavigationMap();
-    
-    // На мобильных устройствах открываем боковую панель
-    if (window.innerWidth < 768) {
-        setTimeout(() => {
-            document.getElementById('sidebar').classList.add('active');
-            showNotification('Навигация', 'Используйте нижнюю панель для быстрых действий', 'info');
-        }, 1500);
-    }
-    
-    // Обновляем статистику каждые 30 секунд
-    setInterval(() => {
-        updateSessionStats();
-    }, 30000);
-    
-    // Показываем информационную панель через 2 секунды
-    setTimeout(showInfoPanel, 2000);
-});
-
 // Обновление статистики сессии
 function updateSessionStats() {
-    fetch(`/api/sessions/{{ $session->id }}/stats`, {
-        method: 'GET',
-        headers: {
-            'Accept': 'application/json'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // Можно обновить данные на странице без перезагрузки
-            console.log('Статистика обновлена:', data.stats);
-        }
-    });
+    apiFetch(`/api/sessions/{{ $session->id }}/stats`)
+        .then(data => {
+            if (data.success) {
+                console.log('Статистика обновлена:', data.data.stats);
+            }
+        })
+        .catch(error => console.warn('Ошибка обновления статистики:', error));
 }
 
 // Очистка при разгрузке страницы
@@ -1672,18 +1862,51 @@ window.addEventListener('beforeunload', () => {
         navigator.geolocation.clearWatch(watchId);
     }
     
-    // Сохраняем состояние сессии
     if (navigationMap) {
         const center = navigationMap.getCenter();
         const zoom = navigationMap.getZoom();
         
-        // Можно сохранить в localStorage для восстановления позиции
         localStorage.setItem('lastMapPosition', JSON.stringify({
             lat: center.lat,
             lng: center.lng,
             zoom: zoom
         }));
     }
+});
+
+// Инициализация при загрузке страницы
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('Инициализация навигации...');
+    
+    // Добавляем делегирование событий для кнопок заданий
+    document.addEventListener('click', function(e) {
+        const taskBtn = e.target.closest('[onclick*="completeTask"]');
+        if (taskBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const onclick = taskBtn.getAttribute('onclick');
+            const match = onclick?.match(/completeTask\((\d+)\)/);
+            if (match) {
+                const taskId = match[1];
+                console.log('Нажата кнопка задания ID:', taskId);
+                completeTask(taskId);
+            }
+        }
+    });
+    
+    initNavigationMap();
+    
+    if (window.innerWidth < 768) {
+        setTimeout(() => {
+            document.getElementById('sidebar')?.classList.add('active');
+        }, 1500);
+    }
+    
+    setInterval(updateSessionStats, 30000);
+    setTimeout(showInfoPanel, 2000);
+    
+    console.log('Инициализация завершена');
 });
 </script>
 @endpush
