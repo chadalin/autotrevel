@@ -349,3 +349,107 @@ Route::middleware(['auth'])->prefix('routes/{route}/navigation')->group(function
 Route::post('/create-test-route', [NavigationController::class, 'createTestRoute'])
     ->middleware('auth')
     ->name('test.route.create');
+
+    // routes/web.php - добавьте в конец файла
+Route::get('/test-db-connection', function () {
+    return [
+        'status' => 'ok',
+        'database' => config('database.default'),
+        'quest_tasks_table_exists' => \Schema::hasTable('quest_tasks'),
+        'quest_tasks_count' => \App\Models\QuestTask::count(),
+        'task_6_exists' => \App\Models\QuestTask::find(6) ? 'yes' : 'no'
+    ];
+});
+
+// routes/web.php - добавьте в конец файла, перед последней скобкой
+
+// Тестовый маршрут для проверки подключения к БД
+Route::get('/test-db-connection', function () {
+    return response()->json([
+        'status' => 'ok',
+        'database' => config('database.default'),
+        'quest_tasks_table_exists' => \Schema::hasTable('quest_tasks'),
+        'quest_tasks_count' => \App\Models\QuestTask::count(),
+        'task_6_exists' => \App\Models\QuestTask::find(6) ? 'yes' : 'no',
+        'all_task_ids' => \App\Models\QuestTask::pluck('id')->toArray()
+    ]);
+});
+
+// Тестовый маршрут для проверки задачи
+Route::get('/test-task/{id}', function ($id) {
+    try {
+        $task = \App\Models\QuestTask::find($id);
+        
+        if (!$task) {
+            return response()->json([
+                'error' => 'Not Found',
+                'message' => "QuestTask с ID {$id} не найден",
+                'available_ids' => \App\Models\QuestTask::pluck('id')->toArray(),
+                'total_tasks' => \App\Models\QuestTask::count()
+            ], 404);
+        }
+        
+        // Пытаемся декодировать content если это JSON строка
+        $content = $task->content;
+        if (is_string($content)) {
+            try {
+                $decoded = json_decode($content, true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    $content = $decoded;
+                }
+            } catch (\Exception $e) {
+                // Оставляем как есть
+            }
+        }
+        
+        return response()->json([
+            'success' => true,
+            'task' => [
+                'id' => $task->id,
+                'title' => $task->title,
+                'type' => $task->type,
+                'quest_id' => $task->quest_id,
+                'description' => $task->description,
+                'content' => $content,
+                'content_type' => gettype($task->content),
+                'points' => $task->points,
+                'created_at' => $task->created_at,
+                'updated_at' => $task->updated_at
+            ],
+            'debug' => [
+                'model' => 'QuestTask',
+                'table' => 'quest_tasks',
+                'exists_in_db' => 'yes'
+            ]
+        ]);
+        
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => 'Server Error',
+            'message' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ], 500);
+    }
+});
+
+// Проверка что API маршруты существуют
+Route::get('/test-api-routes', function () {
+    $routes = [];
+    
+    foreach (\Route::getRoutes() as $route) {
+        $uri = $route->uri();
+        if (strpos($uri, 'api') !== false || strpos($uri, 'task') !== false) {
+            $routes[] = [
+                'uri' => $uri,
+                'name' => $route->getName(),
+                'methods' => $route->methods(),
+                'action' => $route->getActionName()
+            ];
+        }
+    }
+    
+    return response()->json([
+        'total_routes' => count($routes),
+        'routes' => $routes
+    ]);
+});
