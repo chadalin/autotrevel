@@ -13,6 +13,7 @@ use App\Http\Controllers\TestController;
 use App\Http\Controllers\DatabaseSchemaController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\NavigationController;
+use App\Http\Controllers\Admin\QuestTaskController;
 
 use App\Http\Controllers\QuestInteractiveController;
 // Главная страница
@@ -306,6 +307,7 @@ Route::middleware(['auth'])->prefix('quests')->name('quests.')->group(function (
 Route::middleware(['auth'])->prefix('users')->name('users.')->group(function () {
     Route::get('/{user}', [UserController::class, 'show'])->name('show');
     Route::get('/{user}/routes', [UserController::class, 'routes'])->name('routes');
+    Route::get('/{user}/edit', [UserController::class, 'edit'])->name('profile.edit');
     Route::get('/{user}/achievements', [UserController::class, 'achievements'])->name('achievements');
     Route::get('/{user}/activity', [UserController::class, 'activity'])->name('activity');
 });
@@ -323,7 +325,7 @@ Route::prefix('chats')->name('chats.')->middleware('auth')->group(function () {
 });
 
 // Админ маршруты
-Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () {
     // Задания квестов
     Route::get('/quests/{quest}/tasks', [QuestTaskController::class, 'index'])->name('quests.tasks.index');
     Route::get('/quests/{quest}/tasks/create', [QuestTaskController::class, 'create'])->name('quests.tasks.create');
@@ -333,3 +335,17 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::delete('/quests/{quest}/tasks/{task}', [QuestTaskController::class, 'destroy'])->name('quests.tasks.destroy');
     Route::post('/quests/{quest}/tasks/reorder', [QuestTaskController::class, 'reorder'])->name('quests.tasks.reorder');
 });
+
+// Навигация
+Route::middleware(['auth'])->prefix('routes/{route}/navigation')->group(function () {
+    Route::get('/', [NavigationController::class, 'navigate'])->name('routes.navigate');
+    Route::post('/start', [NavigationController::class, 'start'])->name('routes.navigation.start');
+    Route::post('/sessions/{session}/pause', [NavigationController::class, 'pause'])->name('routes.navigation.pause');
+    Route::post('/sessions/{session}/resume', [NavigationController::class, 'resume'])->name('routes.navigation.resume');
+    Route::post('/sessions/{session}/complete', [NavigationController::class, 'complete'])->name('routes.navigation.complete');
+});
+
+// Для тестирования
+Route::post('/create-test-route', [NavigationController::class, 'createTestRoute'])
+    ->middleware('auth')
+    ->name('test.route.create');

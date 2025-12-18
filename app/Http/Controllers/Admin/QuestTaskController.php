@@ -26,6 +26,8 @@ class QuestTaskController extends Controller
 
     public function store(Request $request, Quest $quest)
     {
+
+         
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',

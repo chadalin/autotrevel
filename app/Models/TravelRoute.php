@@ -320,4 +320,9 @@ public function getRouteBounds(): array
     
     return $bounds;
 }
+
+public function checkpoints()
+    {
+        return $this->hasMany(RouteCheckpoint::class, 'route_id')->orderBy('order');
+    }
 }

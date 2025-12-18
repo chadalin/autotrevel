@@ -2,121 +2,127 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class RouteSession extends Model
 {
-    protected $table = 'route_sessions';
-    
+    use HasFactory;
+
     protected $fillable = [
         'user_id',
         'route_id',
         'quest_id',
         'status',
+        'current_position',
+        'checkpoints_visited',
         'started_at',
         'paused_at',
         'completed_at',
-        'ended_at',
-        'current_checkpoint_id',
-        'average_speed',
-        'total_distance',
-        'earned_xp'
+        'distance_traveled',
+        'duration_seconds',
+        'current_checkpoint_id'
     ];
-    
+
     protected $casts = [
+        'current_position' => 'array',
+        'checkpoints_visited' => 'array',
         'started_at' => 'datetime',
         'paused_at' => 'datetime',
-        'completed_at' => 'datetime',
-        'ended_at' => 'datetime',
+        'completed_at' => 'datetime'
     ];
-    
-    public function user(): BelongsTo
+
+    // Связь с маршрутом
+    public function route()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(TravelRoute::class, 'route_id');
     }
-    
-    public function route(): BelongsTo
-    {
-        return $this->belongsTo(TravelRoute::class);
-    }
-    
-    public function quest(): BelongsTo
+
+    // Связь с квестом
+    public function quest()
     {
         return $this->belongsTo(Quest::class, 'quest_id');
     }
-    
-    // Исправляем: возвращаем коллекцию, даже если нет quest_id
-    public function quests()
+
+    // Связь с пользователем
+    public function user()
     {
-        if ($this->quest_id) {
-            // Если есть конкретный quest_id, возвращаем коллекцию с одним квестом
-            return collect([$this->quest]);
-        }
-        
-        // Иначе возвращаем пустую коллекцию
-        return collect();
+        return $this->belongsTo(User::class, 'user_id');
     }
-    
-    // ЯВНО указываем имя внешнего ключа
-    public function checkpoints(): HasMany
-    {
-        return $this->hasMany(RouteCheckpoint::class, 'session_id');
-    }
-    
-    public function currentCheckpoint(): BelongsTo
+
+    // Связь с текущим чекпоинтом
+    public function currentCheckpoint()
     {
         return $this->belongsTo(RouteCheckpoint::class, 'current_checkpoint_id');
     }
-    
-    public function completion()
+
+    // Метод для получения чекпоинтов маршрута
+    public function getRouteCheckpoints()
     {
-        return $this->hasOne(RouteCompletion::class, 'session_id');
+        if (!$this->route) {
+            return collect();
+        }
+        
+        return $this->route->checkpoints()->orderBy('order')->get();
     }
-    
-    // Методы
-    public function isActive(): bool
+
+    // Метод для получения прогресса
+    public function getProgress()
+    {
+        $checkpoints = $this->getRouteCheckpoints();
+        $total = $checkpoints->count();
+        
+        if ($total === 0) {
+            return [
+                'percentage' => 0,
+                'completed' => 0,
+                'total' => 0
+            ];
+        }
+        
+        $completed = $this->checkpoints_visited ? count($this->checkpoints_visited) : 0;
+        $percentage = round(($completed / $total) * 100);
+        
+        return [
+            'percentage' => $percentage,
+            'completed' => $completed,
+            'total' => $total
+        ];
+    }
+
+    // Проверка статусов
+    public function isActive()
     {
         return $this->status === 'active';
     }
-    
-    public function isPaused(): bool
+
+    public function isPaused()
     {
         return $this->status === 'paused';
     }
-    
-    public function isCompleted(): bool
+
+    public function isCompleted()
     {
         return $this->status === 'completed';
     }
-    
-    public function getProgressPercentage(): int
-    {
-        $total = $this->checkpoints()->count();
-        $completed = $this->checkpoints()->where('status', 'completed')->count();
-        
-        return $total > 0 ? round(($completed / $total) * 100) : 0;
-    }
-    
-    public function getElapsedTime(): string
+
+    // Получение пройденного времени
+    public function getElapsedTime()
     {
         if (!$this->started_at) {
-            return '00:00';
+            return '0:00';
         }
         
-        $end = $this->completed_at ?: $this->paused_at ?: now();
+        $endTime = $this->completed_at ?? ($this->paused_at ?? now());
+        $seconds = $endTime->diffInSeconds($this->started_at);
         
-        $diff = $this->started_at->diff($end);
+        $hours = floor($seconds / 3600);
+        $minutes = floor(($seconds % 3600) / 60);
         
-        $hours = $diff->h + ($diff->days * 24);
-        $minutes = $diff->i;
+        if ($hours > 0) {
+            return sprintf('%d:%02d', $hours, $minutes);
+        }
         
-        return sprintf('%02d:%02d', $hours, $minutes);
-    }
-    
-    public function getRemainingCheckpointsCount(): int
-    {
-        return $this->checkpoints()->whereIn('status', ['pending', 'active'])->count();
+        return sprintf('%d мин', $minutes);
     }
 }

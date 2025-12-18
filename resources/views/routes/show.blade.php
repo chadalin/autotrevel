@@ -601,7 +601,17 @@
                                 <p class="text-gray-700">Вы проходите этот маршрут</p>
                             </div>
                             <div class="px-3 py-1 bg-blue-500 text-white rounded-full text-sm font-medium">
-                                {{ $activeSession->getProgressPercentage() }}%
+                                @php
+    $progress = 0;
+    if ($activeSession->checkpoints_visited && is_array($activeSession->checkpoints_visited)) {
+        $total = $activeSession->route->checkpoints->count() ?? $route->checkpoints()->count();
+        if ($total > 0) {
+            $visited = count($activeSession->checkpoints_visited);
+            $progress = min(100, round(($visited / $total) * 100));
+        }
+    }
+@endphp
+{{ $progress }}%
                             </div>
                         </div>
                         

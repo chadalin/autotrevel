@@ -14,98 +14,227 @@ class NavigationController extends Controller
     /**
      * Начать навигацию по маршруту
      */
-    public function start(Request $request, TravelRoute $route)
+     public function start(Request $request, $routeId)
     {
+        $user = Auth::user();
+        $route = TravelRoute::findOrFail($routeId);
+        
         // Проверяем, есть ли уже активная сессия
-        $activeSession = RouteSession::where('user_id', Auth::id())
-            ->where('route_id', $route->id)
+        $existingSession = RouteSession::where('user_id', $user->id)
+            ->where('route_id', $routeId)
             ->whereIn('status', ['active', 'paused'])
             ->first();
-            
-        if ($activeSession) {
-            return redirect()->route('routes.navigate', $route)
-                ->with('error', 'У вас уже есть активная сессия на этом маршруте');
-        }
         
-        // Проверяем, есть ли не завершенные сессии
-        $existingSession = RouteSession::where('user_id', Auth::id())
-            ->where('route_id', $route->id)
-            ->where('status', 'started')
-            ->first();
-            
         if ($existingSession) {
-            // Возобновляем существующую сессию
-            $existingSession->update([
-                'status' => 'active',
-                'started_at' => now(),
-                'paused_at' => null
-            ]);
-            
-            return redirect()->route('routes.navigate', $route)
-                ->with('success', 'Сессия навигации возобновлена');
+            return redirect()->route('routes.navigate', $routeId)
+                ->with('info', 'У вас уже есть активная сессия для этого маршрута');
         }
         
         // Создаем новую сессию
         $session = RouteSession::create([
-            'user_id' => Auth::id(),
-            'route_id' => $route->id,
+            'user_id' => $user->id,
+            'route_id' => $routeId,
+            'quest_id' => $request->input('quest_id'),
             'status' => 'active',
             'started_at' => now(),
-            'current_checkpoint_id' => $route->points->first()->id ?? null,
-            'quest_id' => $request->input('quest_id')
+            'current_checkpoint_id' => $route->checkpoints()->orderBy('order')->first()->id ?? null
         ]);
         
-        // Создаем контрольные точки для сессии
-        foreach ($route->points as $point) {
-            RouteCheckpoint::create([
-                'session_id' => $session->id,
-                'point_id' => $point->id,
-                'order' => $point->order,
-                'status' => 'pending'
-            ]);
-        }
-        
-        return redirect()->route('routes.navigate', $route)
-            ->with('success', 'Навигация по маршруту начата');
+        return redirect()->route('routes.navigate', $routeId)
+            ->with('success', 'Навигация начата!');
     }
     
     /**
      * Показать страницу навигации
      */
-    public function navigate(RouteSession $session)
+     public function navigate($routeId)
 {
-    // Проверка прав доступа
-  //  if ($session->user_id !== Auth::id()) {
-     //   abort(403);
-    //}
+    $user = Auth::user();
+    $route = TravelRoute::with(['checkpoints', 'points'])->findOrFail($routeId);
     
-    $route = $session->route;
+    // Находим активную сессию
+    $session = RouteSession::where('user_id', $user->id)
+        ->where('route_id', $routeId)
+        ->whereIn('status', ['active', 'paused'])
+        ->first();
     
-    // ПРАВИЛЬНО: получаем чекпоинты маршрута, а не сессии
-    $checkpoints = $route->checkpoints()->orderBy('order')->get();
-    
-    // Определяем текущий чекпоинт
-    $currentCheckpoint = null;
-    if ($session->current_checkpoint_id) {
-        $currentCheckpoint = RouteCheckpoint::find($session->current_checkpoint_id);
-    } else {
-        // Если нет текущего чекпоинта, берем первый
-        $currentCheckpoint = $checkpoints->first();
+    if (!$session) {
+        // Создаем новую сессию
+        $firstCheckpoint = $route->checkpoints()->orderBy('order')->first();
+        
+        $session = RouteSession::create([
+            'user_id' => $user->id,
+            'route_id' => $routeId,
+            'status' => 'active',
+            'started_at' => now(),
+            'current_checkpoint_id' => $firstCheckpoint->id ?? null
+        ]);
     }
     
-    // Получаем посещенные чекпоинты
-    $visitedCheckpoints = json_decode($session->checkpoints_visited ?? '[]', true);
+    // Получаем все чекпоинты
+    $checkpoints = $route->checkpoints()->orderBy('order')->get();
     
-    return view('navigation.index', [
-        'session' => $session,
-        'route' => $route,
-        'checkpoints' => $checkpoints,
-        'currentCheckpoint' => $currentCheckpoint,
-        'visitedCheckpoints' => $visitedCheckpoints,
-        'progress' => $this->calculateProgress($checkpoints->count(), count($visitedCheckpoints)),
-    ]);
+    // Текущий чекпоинт
+    $currentCheckpoint = $session->current_checkpoint_id 
+        ? RouteCheckpoint::find($session->current_checkpoint_id)
+        : $checkpoints->first();
+    
+    // Вычисляем прогресс
+    $completedCheckpoints = $session->checkpoints_visited 
+        ? count($session->checkpoints_visited) 
+        : 0;
+    $totalCheckpoints = $checkpoints->count();
+    $progressPercentage = $totalCheckpoints > 0 
+        ? round(($completedCheckpoints / $totalCheckpoints) * 100) 
+        : 0;
+    
+    // Инициализируем переменную activeQuests
+    $activeQuests = collect(); // По умолчанию пустая коллекция
+    
+    // Получаем активные квесты
+    try {
+        // Способ 1: через userQuests
+        if (method_exists($user, 'userQuests')) {
+            $activeQuests = $user->userQuests()
+                ->where('status', 'in_progress')
+                ->whereHas('quest.routes', function($q) use ($route) {
+                    $q->where('travel_routes.id', $route->id);
+                })
+                ->with(['quest' => function($q) {
+                    $q->with(['tasks' => function($q) {
+                        $q->orderBy('order');
+                    }, 'badge']);
+                }])
+                ->get()
+                ->pluck('quest');
+        }
+        // Способ 2: через связь quests
+        elseif (method_exists($user, 'quests')) {
+            $activeQuests = $user->quests()
+                ->where('user_quests.status', 'in_progress')
+                ->whereHas('routes', function($q) use ($route) {
+                    $q->where('travel_routes.id', $route->id);
+                })
+                ->with(['tasks' => function($q) {
+                    $q->orderBy('order');
+                }, 'badge'])
+                ->get();
+        }
+        
+        // Добавляем вычисленные поля к квестам
+        $activeQuests = $activeQuests->map(function($quest) use ($user) {
+            // Вычисляем прогресс квеста
+            $completedTasks = 0;
+            $totalTasks = $quest->tasks->count();
+            
+            if ($totalTasks > 0) {
+                // Получаем прогресс по заданиям
+                $completedTasks = \App\Models\QuestTaskProgress::where('user_id', $user->id)
+                    ->where('quest_id', $quest->id)
+                    ->where('status', 'completed')
+                    ->count();
+                    
+                $quest->progress_percentage = round(($completedTasks / $totalTasks) * 100);
+            } else {
+                $quest->progress_percentage = 0;
+            }
+            
+            // Добавляем userProgress
+            $quest->userProgress = (object)[
+                'progress_percentage' => $quest->progress_percentage
+            ];
+            
+            // Добавляем метки для сложности
+            $quest->difficulty_label = $this->getDifficultyLabel($quest->difficulty);
+            
+            // Добавляем иконки для типов заданий
+            $quest->tasks = $quest->tasks->map(function($task) use ($user) {
+                $task->type_icon = $this->getTaskTypeIcon($task->type);
+                $task->type_label = $this->getTaskTypeLabel($task->type);
+                
+                // Проверяем, выполнено ли задание
+                $taskProgress = \App\Models\QuestTaskProgress::where('user_id', $user->id)
+                    ->where('task_id', $task->id)
+                    ->first();
+                    
+                $task->userProgress = $taskProgress;
+                $task->is_completed = $taskProgress && $taskProgress->status === 'completed';
+                
+                // Метод для проверки возможности выполнения
+                $task->canBeCompleted = function($checkpoint) use ($task) {
+                    return $task->location_id === null || 
+                           ($checkpoint && $task->location_id == $checkpoint->id);
+                };
+                
+                return $task;
+            });
+            
+            return $quest;
+        });
+        
+    } catch (\Exception $e) {
+        \Log::error('Ошибка при получении квестов: ' . $e->getMessage());
+        $activeQuests = collect(); // Возвращаем пустую коллекцию в случае ошибки
+    }
+    
+    // Вычисляем заработанный XP
+    $earnedXp = $session->earned_xp ?? 0;
+    
+    return view('navigation.navigate', compact(
+        'route', 
+        'session', 
+        'checkpoints',
+        'currentCheckpoint',
+        'completedCheckpoints',
+        'totalCheckpoints',
+        'progressPercentage',
+        'activeQuests',
+        'earnedXp'
+    ));
 }
+
+// Вспомогательные методы для меток и иконок
+private function getDifficultyLabel($difficulty)
+{
+    $labels = [
+        'easy' => 'Легкий',
+        'medium' => 'Средний',
+        'hard' => 'Сложный',
+        'expert' => 'Эксперт'
+    ];
     
+    return $labels[$difficulty] ?? 'Средний';
+}
+
+private function getTaskTypeIcon($type)
+{
+    $icons = [
+        'text' => 'fas fa-font',
+        'image' => 'fas fa-image',
+        'code' => 'fas fa-code',
+        'cipher' => 'fas fa-key',
+        'location' => 'fas fa-map-marker-alt',
+        'puzzle' => 'fas fa-puzzle-piece',
+        'quiz' => 'fas fa-question-circle'
+    ];
+    
+    return $icons[$type] ?? 'fas fa-tasks';
+}
+
+private function getTaskTypeLabel($type)
+{
+    $labels = [
+        'text' => 'Текстовое',
+        'image' => 'Фотография',
+        'code' => 'Код',
+        'cipher' => 'Шифр',
+        'location' => 'Локация',
+        'puzzle' => 'Головоломка',
+        'quiz' => 'Викторина'
+    ];
+    
+    return $labels[$type] ?? 'Задание';
+}
     /**
      * Показать навигацию по сессии
      */

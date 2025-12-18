@@ -199,4 +199,59 @@ class QuestTask extends Model
     {
         return $this->hasMany(QuestTask::class)->orderBy('order');
     }
+
+
+      /**
+     * Проверить, можно ли выполнить задание в текущей точке
+     */
+    public function canBeCompleted($checkpoint = null)
+    {
+        // Если задание не привязано к локации, его можно выполнить в любое время
+        if ($this->location_id === null) {
+            return true;
+        }
+        
+        // Если задание привязано к локации, проверяем, совпадает ли с текущей точкой
+        if ($checkpoint && $this->location_id == $checkpoint->id) {
+            return true;
+        }
+        
+        return false;
+    }
+
+    /**
+     * Accessor для иконки типа задания
+     */
+    public function getTypeIconAttribute()
+    {
+        $icons = [
+            'text' => 'fas fa-font',
+            'image' => 'fas fa-image',
+            'code' => 'fas fa-code',
+            'cipher' => 'fas fa-key',
+            'location' => 'fas fa-map-marker-alt',
+            'puzzle' => 'fas fa-puzzle-piece',
+            'quiz' => 'fas fa-question-circle'
+        ];
+        
+        return $icons[$this->type] ?? 'fas fa-tasks';
+    }
+
+    /**
+     * Accessor для метки типа задания
+     */
+    public function getTypeLabelAttribute()
+    {
+        $labels = [
+            'text' => 'Текстовое',
+            'image' => 'Фотография',
+            'code' => 'Код',
+            'cipher' => 'Шифр',
+            'location' => 'Локация',
+            'puzzle' => 'Головоломка',
+            'quiz' => 'Викторина'
+        ];
+        
+        return $labels[$this->type] ?? 'Задание';
+    }
 }

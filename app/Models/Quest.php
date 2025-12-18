@@ -371,4 +371,9 @@ class Quest extends Model
             'Нет данных';
     }
 
+    public function tasks()
+    {
+        return $this->hasMany(QuestTask::class);
+    }
+
 }
