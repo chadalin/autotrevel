@@ -20,35 +20,52 @@ class TaskApiController extends Controller
     /**
      * Получить информацию о задании
      */
-    public function show(QuestTask $task)
-    {
+   public function show($id)
+{
+    try {
         $user = Auth::user();
-        $task = QuestTask::with(['quest', 'location'])->findOrFail($taskId);
         
-        // Проверяем доступ к заданию
-        $userQuest = UserQuest::where('user_id', $user->id)
-            ->where('quest_id', $task->quest_id)
-            ->where('status', 'in_progress')
-            ->first();
+        // 1. НАХОДИМ ЗАДАНИЕ
+        $task = QuestTask::find($id);
         
-        if (!$userQuest) {
+        if (!$task) {
             return response()->json([
                 'success' => false,
-                'message' => 'Задание недоступно или квест не активен'
-            ], 403);
+                'message' => 'Задание не найдено',
+                'id' => $id
+            ], 404);
         }
         
-        // Проверяем, не выполнено ли уже задание
+        // 2. ЗАГРУЖАЕМ СВЯЗИ
+        // Правильно: вызываем load() на объекте модели
+        $task->load(['quest', 'location']);
+        
+        // 3. ПРОВЕРЯЕМ QUEST
+        if (!$task->quest) {
+            \Log::warning('Quest not found for task', [
+                'task_id' => $task->id,
+                'quest_id' => $task->quest_id
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Квест не найден',
+                'task_id' => $task->id,
+                'quest_id' => $task->quest_id
+            ], 404);
+        }
+        
+        // 4. ПРОВЕРЯЕМ ПРОГРЕСС (опционально)
         $progress = QuestTaskProgress::where('user_id', $user->id)
             ->where('task_id', $task->id)
             ->first();
         
-        $task->is_completed = $progress && $progress->status === 'completed';
-        $task->user_answer = $progress ? $progress->user_answer : null;
+        $isCompleted = $progress && $progress->status === 'completed';
         
-        // Форматируем контент в зависимости от типа задания
+        // 5. ФОРМАТИРУЕМ КОНТЕНТ
         $formattedContent = $this->formatTaskContent($task);
         
+        // 6. ВОЗВРАЩАЕМ ОТВЕТ
         return response()->json([
             'success' => true,
             'data' => [
@@ -65,8 +82,8 @@ class TaskApiController extends Controller
                     'hints_available' => $task->hints_available,
                     'required_answer' => $task->required_answer,
                     'location' => $task->location,
-                    'is_completed' => $task->is_completed,
-                    'user_answer' => $task->user_answer,
+                    'is_completed' => $isCompleted,
+                    'user_answer' => $progress ? $progress->user_answer : null,
                     'metadata' => $task->metadata ?? [],
                     'quest' => [
                         'id' => $task->quest->id,
@@ -76,7 +93,19 @@ class TaskApiController extends Controller
                 ]
             ]
         ]);
+        
+    } catch (\Exception $e) {
+        \Log::error('Task API Error: ' . $e->getMessage(), [
+            'id' => $id,
+            'trace' => $e->getTraceAsString()
+        ]);
+        
+        return response()->json([
+            'success' => false,
+            'message' => 'Ошибка загрузки задания: ' . $e->getMessage()
+        ], 500);
     }
+}
     
     /**
      * Выполнить задание

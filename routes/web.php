@@ -12,6 +12,7 @@ use App\Http\Controllers\CommentController;
 use App\Http\Controllers\TestController;
 use App\Http\Controllers\DatabaseSchemaController;
 use App\Http\Controllers\ReviewController;
+use App\Http\Controllers\UserController;
 use App\Http\Controllers\NavigationController;
 use App\Http\Controllers\Admin\QuestTaskController;
 
@@ -453,3 +454,5 @@ Route::get('/test-api-routes', function () {
         'routes' => $routes
     ]);
 });
+
+require __DIR__.'/api.php';
