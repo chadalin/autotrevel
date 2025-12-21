@@ -456,3 +456,44 @@ Route::get('/test-api-routes', function () {
 });
 
 require __DIR__.'/api.php';
+
+// routes/web.php
+
+// Маршруты для интерактивных квестов
+Route::prefix('quests/interactive')->name('quests.interactive.')->middleware(['auth'])->group(function () {
+    // Показать текущее задание
+    Route::get('/{questSlug}', [QuestInteractiveController::class, 'showCurrentTask'])
+        ->name('task');
+    
+    // Отправить ответ
+    Route::post('/{questSlug}/task/{taskId}', [QuestInteractiveController::class, 'submitAnswer'])
+        ->name('submit');
+    
+    // Получить подсказку
+    Route::post('/{questSlug}/task/{taskId}/hint', [QuestInteractiveController::class, 'getHint'])
+        ->name('hint');
+    
+    // Проверить местоположение
+    Route::post('/{questSlug}/task/{taskId}/location', [QuestInteractiveController::class, 'checkLocation'])
+        ->name('check-location');
+    
+    // Приостановить квест
+    Route::post('/{questSlug}/pause', [QuestInteractiveController::class, 'pauseQuest'])
+        ->name('pause');
+    
+    // Возобновить квест
+    Route::post('/{questSlug}/resume', [QuestInteractiveController::class, 'resumeQuest'])
+        ->name('resume');
+    
+    // Завершить квест досрочно
+    Route::post('/{questSlug}/complete', [QuestInteractiveController::class, 'completeQuest'])
+        ->name('complete');
+    
+    // Чат квеста
+    Route::get('/{questSlug}/chat', [QuestInteractiveController::class, 'questChat'])
+        ->name('chat');
+    
+    // Отправить сообщение в чат (если нужно)
+    Route::post('/{questSlug}/chat', [QuestInteractiveController::class, 'sendMessage'])
+        ->name('chat.send');
+});
