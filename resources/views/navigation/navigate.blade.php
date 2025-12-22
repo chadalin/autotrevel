@@ -960,86 +960,124 @@
     </template>
     
     <!-- Задание с фото -->
-    <template id="task-template-image">
-        <div class="task-modal task-type-image">
-            <div class="task-header">
-                <div class="flex items-center mb-4">
-                    <div class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center mr-3">
-                        <i class="fas fa-camera text-purple-600"></i>
-                    </div>
-                    <div>
-                        <h3 class="text-lg font-bold text-gray-800" data-bind="title"></h3>
-                        <p class="text-sm text-gray-600" data-bind="description"></p>
-                    </div>
+ <!-- Задание с фото - Исправленный шаблон -->
+<template id="task-template-image">
+    <div class="task-modal task-type-image">
+        <div class="task-header">
+            <div class="flex items-center mb-4">
+                <div class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center mr-3">
+                    <i class="fas fa-camera text-purple-600"></i>
                 </div>
-            </div>
-            
-            <div class="task-content mb-6">
-                <div class="bg-gray-50 rounded-lg p-4 mb-4">
-                    <div class="text-sm font-medium text-gray-700 mb-2">Задание:</div>
-                    <div class="text-gray-800" data-bind="content.description"></div>
-                    
-                    <div class="mt-3 required-elements" style="display: none;">
-                        <div class="text-sm font-medium text-gray-700 mb-1">На фото должны быть:</div>
-                        <ul class="list-disc list-inside text-sm text-gray-600 required-elements-list">
-                        </ul>
-                    </div>
-                </div>
-                
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Выберите фото:</label>
-                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-purple-400 transition-colors cursor-pointer"
-                         onclick="document.getElementById('task-photo-input').click()">
-                        <input type="file" id="task-photo-input" accept="image/*" capture="environment" 
-                               class="hidden" onchange="previewTaskPhoto(this)">
-                        <div id="photo-upload-area">
-                            <i class="fas fa-camera text-gray-400 text-3xl mb-3"></i>
-                            <p class="text-gray-600 mb-1">Нажмите для выбора фото</p>
-                            <p class="text-sm text-gray-500">или сделайте снимок (до 10MB)</p>
-                        </div>
-                    </div>
-                    <div id="photo-preview-container" class="mt-3 hidden">
-                        <div class="bg-gray-50 rounded-lg p-3">
-                            <div class="flex items-center justify-between mb-3">
-                                <div class="flex items-center">
-                                    <i class="fas fa-image text-gray-400 mr-3"></i>
-                                    <div>
-                                        <div class="font-medium text-gray-800 text-sm" id="photo-filename"></div>
-                                        <div class="text-xs text-gray-500" id="photo-filesize"></div>
-                                    </div>
-                                </div>
-                                <button type="button" onclick="removePhotoPreview()" 
-                                        class="text-red-500 hover:text-red-700">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            </div>
-                            <img id="photo-preview-image" class="w-full h-48 object-cover rounded-lg">
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Описание фото:</label>
-                    <textarea id="photo-description" rows="2"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                        placeholder="Опишите, что на фото..."></textarea>
-                </div>
-            </div>
-            
-            <div class="task-footer">
-                <div class="flex justify-end gap-2">
-                    <button onclick="closeTaskModal()"
-                            class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300">
-                        Отмена
-                    </button>
-                    <button onclick="submitPhotoTask()"
-                            class="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-bold">
-                        <i class="fas fa-upload mr-2"></i>Загрузить фото
-                    </button>
+                <div>
+                    <h3 class="text-lg font-bold text-gray-800" data-bind="title"></h3>
+                    <p class="text-sm text-gray-600" data-bind="description"></p>
                 </div>
             </div>
         </div>
-    </template>
+        
+        <div class="task-content mb-6">
+            <div class="bg-gray-50 rounded-lg p-4 mb-4">
+                <div class="text-sm font-medium text-gray-700 mb-2">Задание:</div>
+                <div class="text-gray-800" data-bind="content.description"></div>
+            </div>
+            
+            <!-- Область загрузки фото -->
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Выберите или сделайте фото:</label>
+                
+                <!-- Вариант 1: Сделать фото -->
+                <div class="mb-3">
+                    <button id="take-photo-btn" 
+                            class="w-full px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-lg font-bold flex items-center justify-center gap-2">
+                        <i class="fas fa-camera"></i>
+                        Сделать фото
+                    </button>
+                </div>
+                
+                <!-- Вариант 2: Выбрать из галереи -->
+                <div class="mb-3">
+                    <input type="file" 
+                           id="photo-file-input" 
+                           accept="image/*" 
+                           capture="environment" 
+                           class="hidden">
+                    <button id="choose-photo-btn" 
+                            class="w-full px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg font-medium flex items-center justify-center gap-2 border-2 border-dashed border-gray-300">
+                        <i class="fas fa-images"></i>
+                        Выбрать из галереи
+                    </button>
+                </div>
+                
+                <!-- Предпросмотр фото -->
+                <div id="photo-preview-container" class="mt-4 hidden">
+                    <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="font-medium text-gray-800">Предпросмотр:</h4>
+                            <button type="button" 
+                                    onclick="removePhotoPreview()" 
+                                    class="text-red-500 hover:text-red-700">
+                                <i class="fas fa-times"></i> Удалить
+                            </button>
+                        </div>
+                        <div class="relative">
+                            <img id="photo-preview-image" 
+                                 class="w-full h-64 object-contain rounded-lg bg-gray-100">
+                            <div id="photo-loading" 
+                                 class="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+                                <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-white"></div>
+                            </div>
+                        </div>
+                        <div id="photo-info" class="mt-2 text-sm text-gray-600">
+                            <div id="photo-filename"></div>
+                            <div id="photo-filesize"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Описание фото -->
+                <div class="mt-4">
+                    <label for="photo-description" class="block text-sm font-medium text-gray-700 mb-2">
+                        Описание фото (необязательно):
+                    </label>
+                    <textarea id="photo-description" 
+                              rows="2"
+                              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                              placeholder="Опишите, что на фото..."></textarea>
+                </div>
+                
+                <!-- Кнопка загрузки -->
+                <div id="upload-button-container" class="mt-4 hidden">
+                    <button onclick="uploadTaskPhoto()" 
+                            id="upload-photo-btn"
+                            class="w-full px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-lg font-bold flex items-center justify-center gap-2">
+                        <i class="fas fa-upload"></i>
+                        Загрузить фото
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Подсказки -->
+            <div class="mb-4 hints-section" style="display: none;">
+                <button onclick="requestHint()" 
+                        class="text-sm text-purple-600 hover:text-purple-800 font-medium flex items-center">
+                    <i class="fas fa-lightbulb mr-2"></i> Получить подсказку
+                    <span class="ml-2 text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
+                        <span data-bind="hints_available">0</span> доступно
+                    </span>
+                </button>
+            </div>
+        </div>
+        
+        <div class="task-footer">
+            <div class="flex justify-end gap-2">
+                <button onclick="closeTaskModal()"
+                        class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300">
+                    Отмена
+                </button>
+            </div>
+        </div>
+    </div>
+</template>
     
     <!-- Викторина -->
     <template id="task-template-quiz">
@@ -1472,14 +1510,20 @@ async function apiFetch(url, options = {}) {
         }
     };
     
+    console.log('API Fetch:', url, mergedOptions);
+    
     try {
         const response = await fetch(url, mergedOptions);
         
         if (!response.ok) {
+            const errorText = await response.text();
+            console.error('API Error Response:', errorText);
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         
-        return await response.json();
+        const data = await response.json();
+        console.log('API Response:', data);
+        return data;
     } catch (error) {
         console.error('API Fetch Error:', error);
         throw error;
@@ -1487,8 +1531,30 @@ async function apiFetch(url, options = {}) {
 }
 
 function showNotification(title, message, type = 'info') {
+    console.log('Show notification:', {title, message, type});
+    
     const toast = document.getElementById('notificationToast');
-    if (!toast) return;
+    if (!toast) {
+        // Создаем временное уведомление если основное не найдено
+        const tempToast = document.createElement('div');
+        tempToast.className = `fixed top-4 right-4 z-[1400] px-4 py-3 rounded-lg shadow-lg text-white ${
+            type === 'success' ? 'bg-green-500' : 
+            type === 'error' ? 'bg-red-500' : 
+            type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
+        }`;
+        tempToast.innerHTML = `
+            <div class="flex items-center">
+                <i class="fas fa-info-circle mr-2"></i>
+                <span>${title}: ${message}</span>
+            </div>
+        `;
+        document.body.appendChild(tempToast);
+        
+        setTimeout(() => {
+            tempToast.remove();
+        }, 5000);
+        return;
+    }
     
     const toastTitle = document.getElementById('toastTitle');
     const toastMessage = document.getElementById('toastMessage');
@@ -1496,13 +1562,40 @@ function showNotification(title, message, type = 'info') {
     if (toastTitle) toastTitle.textContent = title;
     if (toastMessage) toastMessage.textContent = message;
     
+    // Обновляем стиль уведомления
+    const typeColors = {
+        'success': 'border-l-4 border-green-500',
+        'error': 'border-l-4 border-red-500', 
+        'warning': 'border-l-4 border-yellow-500',
+        'info': 'border-l-4 border-blue-500'
+    };
+    
+    // Сначала удаляем все border классы
+    toast.className = toast.className
+        .replace(/border-l-4\s+border-[a-z]+-500/g, '')
+        .trim();
+    
+    // Добавляем правильный класс
+    const borderClass = typeColors[type] || typeColors.info;
+    toast.classList.add(...borderClass.split(' '));
+    
+    toast.classList.remove('hidden');
     toast.classList.add('show');
-    setTimeout(() => toast.classList.remove('show'), 5000);
+    
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => {
+            toast.classList.add('hidden');
+        }, 300);
+    }, 5000);
 }
 
 function hideToast() {
     const toast = document.getElementById('notificationToast');
-    if (toast) toast.classList.remove('show');
+    if (toast) {
+        toast.classList.remove('show');
+        setTimeout(() => toast.classList.add('hidden'), 300);
+    }
 }
 
 function showLoading(message = 'Загрузка...') {
@@ -1511,7 +1604,7 @@ function showLoading(message = 'Загрузка...') {
     if (!loader) {
         loader = document.createElement('div');
         loader.id = 'loading-indicator';
-        loader.className = 'fixed inset-0 z-[1400] bg-black bg-opacity-50 flex items-center justify-center';
+        loader.className = 'fixed inset-0 z-[9999] bg-black bg-opacity-50 flex items-center justify-center';
         loader.innerHTML = `
             <div class="bg-white rounded-xl p-8 text-center">
                 <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
@@ -1528,10 +1621,18 @@ function showLoading(message = 'Загрузка...') {
 
 function hideLoading() {
     const loader = document.getElementById('loading-indicator');
-    if (loader) loader.classList.add('hidden');
+    if (loader) {
+        loader.classList.add('hidden');
+        setTimeout(() => {
+            if (loader.parentNode) {
+                loader.parentNode.removeChild(loader);
+            }
+        }, 300);
+    }
 }
 
 function getValueByPath(obj, path) {
+    if (!obj || !path) return undefined;
     return path.split('.').reduce((current, key) => {
         return current ? current[key] : undefined;
     }, obj);
@@ -1569,63 +1670,107 @@ function initNavigationMap() {
     
     try {
         console.log('Инициализация карты...');
-        const startLat = {{ $route->start_coordinates['lat'] ?? 55.7558 }};
-        const startLng = {{ $route->start_coordinates['lng'] ?? 37.6173 }};
-        navigationMap = L.map('navigation-map').setView([startLat, startLng], 13);
         
+        // Используем координаты маршрута или центр России
+        let startLat = 55.7558;
+        let startLng = 37.6173;
+        let routeCoordinates = [];
+        
+        // Пытаемся получить координаты маршрута
+        @if(isset($route->coordinates) && !empty($route->coordinates))
+            try {
+                routeCoordinates = @json($route->coordinates);
+                console.log('Координаты маршрута:', routeCoordinates);
+                
+                if (routeCoordinates && routeCoordinates.length > 0) {
+                    // Берем среднюю точку маршрута
+                    const sumLat = routeCoordinates.reduce((sum, coord) => sum + coord[0], 0);
+                    const sumLng = routeCoordinates.reduce((sum, coord) => sum + coord[1], 0);
+                    startLat = sumLat / routeCoordinates.length;
+                    startLng = sumLng / routeCoordinates.length;
+                }
+            } catch (e) {
+                console.error('Ошибка парсинга координат маршрута:', e);
+            }
+        @endif
+        
+        console.log('Центр карты:', startLat, startLng);
+        
+        navigationMap = L.map('navigation-map', {
+            zoomControl: false
+        }).setView([startLat, startLng], 13);
+        
+        // Добавляем базовый слой карты
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap',
+            attribution: '© OpenStreetMap contributors',
             maxZoom: 19,
             minZoom: 3
         }).addTo(navigationMap);
         
-        @if($route->coordinates && !empty($route->coordinates))
+        // Добавляем контроль масштаба
+        L.control.scale().addTo(navigationMap);
+        
+        // Добавляем маршрут если есть координаты
+        if (routeCoordinates && routeCoordinates.length > 1) {
             try {
-                const coordinates = @json($route->coordinates);
-                if (coordinates && coordinates.length > 0) {
-                    routeLayer = L.polyline(coordinates, {
-                        color: '#3b82f6',
-                        weight: 5,
-                        opacity: 0.8,
-                        smoothFactor: 1,
-                        dashArray: '10, 10'
-                    }).addTo(navigationMap);
-                    
-                    navigationMap.fitBounds(routeLayer.getBounds(), { padding: [50, 50] });
+                routeLayer = L.polyline(routeCoordinates, {
+                    color: '#3b82f6',
+                    weight: 5,
+                    opacity: 0.8,
+                    smoothFactor: 1,
+                    dashArray: '10, 10'
+                }).addTo(navigationMap);
+                
+                // Устанавливаем обзор на весь маршрут
+                const bounds = routeLayer.getBounds();
+                if (bounds.isValid()) {
+                    navigationMap.fitBounds(bounds, { 
+                        padding: [50, 50],
+                        maxZoom: 13
+                    });
                 }
+                
+                console.log('Маршрут добавлен, точек:', routeCoordinates.length);
             } catch (e) {
                 console.error('Ошибка при добавлении маршрута:', e);
+                showNotification('Карта', 'Не удалось отобразить маршрут', 'warning');
             }
-        @endif
+        } else {
+            console.warn('Нет координат маршрута для отображения');
+        }
         
-        @foreach($checkpoints as $checkpoint)
-            @if($checkpoint->latitude && $checkpoint->longitude)
-                try {
-                    const marker = createCheckpointMarker(
-                        {{ $checkpoint->id }},
-                        {{ $checkpoint->latitude }},
-                        {{ $checkpoint->longitude }},
-                        {{ $checkpoint->order }},
-                        {{ $currentCheckpoint && $checkpoint->id === $currentCheckpoint->id ? 'true' : 'false' }},
-                        {{ $checkpoint->isCompleted() ? 'true' : 'false' }},
-                        '{{ addslashes($checkpoint->title) }}',
-                        '{{ addslashes($checkpoint->type_label ?? 'Точка') }}'
-                    );
-                    checkpointMarkers.push(marker);
-                } catch (e) {
-                    console.error('Ошибка создания маркера:', e);
-                }
-            @endif
-        @endforeach
+        // Добавляем точки маршрута
+        @if(isset($checkpoints) && count($checkpoints) > 0)
+            @foreach($checkpoints as $checkpoint)
+                @if($checkpoint->latitude && $checkpoint->longitude)
+                    try {
+                        const marker = createCheckpointMarker(
+                            {{ $checkpoint->id }},
+                            {{ $checkpoint->latitude }},
+                            {{ $checkpoint->longitude }},
+                            {{ $checkpoint->order }},
+                            {{ isset($currentCheckpoint) && $currentCheckpoint && $checkpoint->id === $currentCheckpoint->id ? 'true' : 'false' }},
+                            {{ $checkpoint->isCompleted() ? 'true' : 'false' }},
+                            '{{ addslashes($checkpoint->title) }}',
+                            '{{ addslashes($checkpoint->type_label ?? 'Точка') }}'
+                        );
+                        checkpointMarkers.push(marker);
+                    } catch (e) {
+                        console.error('Ошибка создания маркера:', e);
+                    }
+                @endif
+            @endforeach
+        @endif
         
         initGeolocation();
         
+        // Обновляем размер карты после загрузки
         setTimeout(() => {
             if (navigationMap) {
                 navigationMap.invalidateSize();
                 console.log('Размер карты обновлен');
             }
-        }, 100);
+        }, 300);
         
     } catch (error) {
         console.error('Ошибка инициализации карты:', error);
@@ -1694,20 +1839,88 @@ function initGeolocation() {
         return;
     }
     
+    // Проверяем разрешение на геолокацию
+    if (navigator.permissions && navigator.permissions.query) {
+        navigator.permissions.query({name: 'geolocation'})
+            .then(function(permissionStatus) {
+                console.log('Geolocation permission status:', permissionStatus.state);
+                
+                if (permissionStatus.state === 'denied') {
+                    showNotification('Геолокация', 'Доступ к геолокации запрещен. Разрешите доступ в настройках браузера.', 'error');
+                    showManualLocationSelector();
+                    return;
+                }
+                
+                if (permissionStatus.state === 'prompt') {
+                    showNotification('Геолокация', 'Разрешите доступ к вашему местоположению для работы навигатора', 'info');
+                }
+                
+                // Запрашиваем текущее местоположение
+                getCurrentPositionWithTimeout();
+            })
+            .catch(function(error) {
+                console.warn('Permission query error:', error);
+                // Если не поддерживается permissions API, пробуем получить позицию напрямую
+                getCurrentPositionWithTimeout();
+            });
+    } else {
+        // Для браузеров без поддержки Permissions API
+        getCurrentPositionWithTimeout();
+    }
+}
+
+function getCurrentPositionWithTimeout() {
     navigator.geolocation.getCurrentPosition(
         showCurrentPosition,
-        handleLocationError,
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        function(error) {
+            // Более детальная обработка ошибок
+            let message = '';
+            
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    message = 'Доступ к геолокации запрещен. Разрешите доступ в настройках браузера.';
+                    showManualLocationSelector();
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    message = 'Информация о местоположении недоступна. Проверьте GPS и интернет соединение.';
+                    break;
+                case error.TIMEOUT:
+                    message = 'Время ожидания определения местоположения истекло. Попробуйте снова.';
+                    setTimeout(getCurrentPositionWithTimeout, 3000);
+                    break;
+                default:
+                    message = 'Неизвестная ошибка геолокации.';
+            }
+            
+            if (message) {
+                showNotification('Геолокация', message, 'warning');
+            }
+        },
+        { 
+            enableHighAccuracy: true, 
+            timeout: 10000, 
+            maximumAge: 60000 
+        }
     );
     
+    // Запускаем слежение за позицией
     watchId = navigator.geolocation.watchPosition(
         updateCurrentPosition,
-        handleLocationError,
-        { enableHighAccuracy: true, timeout: 5000, maximumAge: 1000 }
+        function(error) {
+            console.warn('Watch position error:', error.message);
+            // Не показываем уведомление для каждой ошибки слежения
+        },
+        { 
+            enableHighAccuracy: true, 
+            timeout: 5000, 
+            maximumAge: 1000 
+        }
     );
 }
 
 function showCurrentPosition(position) {
+    console.log('Position received:', position);
+    
     currentPosition = {
         lat: position.coords.latitude,
         lng: position.coords.longitude,
@@ -1716,25 +1929,41 @@ function showCurrentPosition(position) {
         speed: position.coords.speed
     };
     
-    currentPositionMarker = L.marker([currentPosition.lat, currentPosition.lng], {
-        icon: L.divIcon({
-            html: `
-                <div style="
-                    width: 24px;
-                    height: 24px;
-                    background-color: #3b82f6;
-                    border-radius: 50%;
-                    border: 3px solid white;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-                "></div>
-            `,
-            className: 'current-position-marker',
-            iconSize: [24, 24],
-            iconAnchor: [12, 12]
-        })
-    }).addTo(navigationMap);
-    
     if (navigationMap) {
+        currentPositionMarker = L.marker([currentPosition.lat, currentPosition.lng], {
+            icon: L.divIcon({
+                html: `
+                    <div style="
+                        width: 24px;
+                        height: 24px;
+                        background-color: #3b82f6;
+                        border-radius: 50%;
+                        border: 3px solid white;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                    "></div>
+                `,
+                className: 'current-position-marker',
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+            }),
+            zIndexOffset: 1000
+        }).addTo(navigationMap);
+        
+        currentPositionMarker.bindPopup('<b>Ваше местоположение</b>').openPopup();
+        
+        // Добавляем круг точности
+        if (position.coords.accuracy) {
+            L.circle([currentPosition.lat, currentPosition.lng], {
+                radius: position.coords.accuracy,
+                className: 'accuracy-circle',
+                color: '#3b82f6',
+                fillColor: '#3b82f6',
+                weight: 1,
+                fillOpacity: 0.1
+            }).addTo(navigationMap);
+        }
+        
+        // Центрируем карту на пользователе
         navigationMap.setView([currentPosition.lat, currentPosition.lng], 15);
     }
     
@@ -1761,7 +1990,7 @@ function updateCurrentPosition(position) {
 }
 
 function updateDistanceToCheckpoint() {
-    @if($currentCheckpoint)
+    @if(isset($currentCheckpoint) && $currentCheckpoint && $currentCheckpoint->latitude && $currentCheckpoint->longitude)
         if (currentPosition && currentPosition.lat && currentPosition.lng) {
             const distance = calculateDistance(
                 currentPosition.lat,
@@ -1769,6 +1998,8 @@ function updateDistanceToCheckpoint() {
                 {{ $currentCheckpoint->latitude }},
                 {{ $currentCheckpoint->longitude }}
             );
+            
+            console.log('Расстояние до точки:', distance.toFixed(3), 'км');
             
             if (distance < 0.1) {
                 showNotification('Приближение', 'Вы близко к контрольной точке!', 'info');
@@ -1781,33 +2012,100 @@ function updateDistanceToCheckpoint() {
     @endif
 }
 
-function handleLocationError(error) {
-    console.warn('Ошибка геолокации:', error.message);
+function showManualLocationSelector() {
+    // Проверяем, нет ли уже селектора
+    if (document.querySelector('.manual-location-selector')) return;
     
-    let message = 'Не удалось определить ваше местоположение. ';
-    switch(error.code) {
-        case error.PERMISSION_DENIED:
-            message += 'Разрешите доступ к геолокации в настройках браузера.';
-            break;
-        case error.POSITION_UNAVAILABLE:
-            message += 'Информация о местоположении недоступна.';
-            break;
-        case error.TIMEOUT:
-            message += 'Превышено время ожидания определения местоположения.';
-            break;
+    // Создаем кнопку для ручного выбора местоположения
+    const manualSelector = document.createElement('div');
+    manualSelector.className = 'manual-location-selector fixed bottom-20 right-4 z-[1003] bg-white rounded-lg shadow-lg p-4 max-w-sm animate-slide-up';
+    manualSelector.innerHTML = `
+        <div class="mb-3">
+            <h4 class="font-bold text-gray-800">Установить местоположение вручную</h4>
+            <p class="text-sm text-gray-600 mt-1">Используйте карту для выбора точки</p>
+        </div>
+        <div class="flex space-x-2">
+            <button onclick="useMapForLocation()" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded">
+                Выбрать на карте
+            </button>
+            <button onclick="this.parentElement.remove()" class="px-4 py-2 text-gray-600 hover:text-gray-800">
+                Закрыть
+            </button>
+        </div>
+    `;
+    
+    document.body.appendChild(manualSelector);
+}
+
+function useMapForLocation() {
+    if (!navigationMap) return;
+    
+    showNotification('Карта', 'Нажмите на карту для выбора местоположения', 'info');
+    
+    // Убираем предыдущий обработчик если есть
+    if (window.mapLocationClickHandler) {
+        navigationMap.off('click', window.mapLocationClickHandler);
     }
     
-    showNotification('Геолокация', message, 'warning');
+    // Добавляем обработчик клика по карте
+    window.mapLocationClickHandler = function(e) {
+        currentPosition = {
+            lat: e.latlng.lat,
+            lng: e.latlng.lng,
+            accuracy: 50 // Примерная точность ручного выбора
+        };
+        
+        if (currentPositionMarker) {
+            currentPositionMarker.setLatLng([currentPosition.lat, currentPosition.lng]);
+        } else {
+            currentPositionMarker = L.marker([currentPosition.lat, currentPosition.lng], {
+                icon: L.divIcon({
+                    html: `
+                        <div style="
+                            width: 24px;
+                            height: 24px;
+                            background-color: #3b82f6;
+                            border-radius: 50%;
+                            border: 3px solid white;
+                            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                        "></div>
+                    `,
+                    className: 'current-position-marker',
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
+                })
+            }).addTo(navigationMap);
+        }
+        
+        navigationMap.setView([currentPosition.lat, currentPosition.lng], 15);
+        showNotification('Успех', 'Местоположение установлено', 'success');
+        
+        // Убираем обработчик после выбора
+        navigationMap.off('click', window.mapLocationClickHandler);
+        delete window.mapLocationClickHandler;
+        
+        // Убираем панель выбора
+        const manualSelector = document.querySelector('.manual-location-selector');
+        if (manualSelector) manualSelector.remove();
+    };
+    
+    navigationMap.on('click', window.mapLocationClickHandler);
 }
 
 function arriveAtCheckpoint(checkpointId) {
     if (confirm('Подтвердите прибытие на контрольную точку')) {
         showLoading('Отмечаем прибытие...');
         
-        apiFetch(`/api/checkpoints/${checkpointId}/arrive`, {
+        fetch(`/api/checkpoints/${checkpointId}/arrive`, {
             method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': getCsrfToken(),
+                'Accept': 'application/json'
+            },
             body: JSON.stringify({ comment: 'Прибыл на точку' })
         })
+        .then(response => response.json())
         .then(data => {
             if (data.success) {
                 showNotification('Успех', 'Точка успешно отмечена!', 'success');
@@ -1828,9 +2126,15 @@ function skipCheckpoint(checkpointId) {
     if (confirm('Вы уверены, что хотите пропустить эту точку?')) {
         showLoading('Пропускаем точку...');
         
-        apiFetch(`/api/checkpoints/${checkpointId}/skip`, {
-            method: 'POST'
+        fetch(`/api/checkpoints/${checkpointId}/skip`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': getCsrfToken(),
+                'Accept': 'application/json'
+            }
         })
+        .then(response => response.json())
         .then(data => {
             if (data.success) {
                 showNotification('Успех', 'Точка пропущена', 'info');
@@ -1859,12 +2163,19 @@ async function completeTask(taskId) {
     try {
         showLoading('Загружаем задание...');
         
-        const response = await apiFetch(`{{ url('/api/tasks') }}/${taskId}`);
+        const response = await fetch(`/api/tasks/${taskId}`, {
+            headers: {
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': getCsrfToken()
+            }
+        });
         
-        if (response.success && response.data && response.data.task) {
-            displayTask(response.data);
+        const data = await response.json();
+        
+        if (data.success && data.data && data.data.task) {
+            displayTask(data.data);
         } else {
-            displayTaskError(response.message || 'Не удалось загрузить задание');
+            displayTaskError(data.message || 'Не удалось загрузить задание');
         }
     } catch (error) {
         console.error('Ошибка загрузки задания:', error);
@@ -1881,6 +2192,7 @@ function displayTask(taskData) {
     }
     
     currentTask = taskData.task;
+    console.log('Текущее задание:', currentTask);
     
     let templateId;
     switch(currentTask.type) {
@@ -1896,12 +2208,14 @@ function displayTask(taskData) {
     
     const template = document.getElementById(templateId);
     if (!template) {
+        console.error('Шаблон не найден:', templateId);
         displayTaskError('Шаблон задания не найден');
         return;
     }
     
     const clone = template.content.cloneNode(true);
     
+    // Биндинг данных через data-bind атрибуты
     const elements = clone.querySelectorAll('[data-bind]');
     elements.forEach(element => {
         const bindPath = element.getAttribute('data-bind');
@@ -1918,93 +2232,6 @@ function displayTask(taskData) {
         }
     });
     
-    if (templateId === 'task-template-quiz' && currentTask.content && currentTask.content.options) {
-        const quizOptions = clone.querySelector('#quiz-options');
-        if (quizOptions) {
-            const multipleChoice = currentTask.content.multiple_choice || false;
-            quizOptions.innerHTML = '';
-            
-            currentTask.content.options.forEach((option, index) => {
-                const label = document.createElement('label');
-                label.className = 'flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors mb-2';
-                label.innerHTML = `
-                    <input type="${multipleChoice ? 'checkbox' : 'radio'}" 
-                           name="quiz-option" 
-                           value="${option}" 
-                           class="mr-3">
-                    <span class="text-gray-700">${option}</span>
-                `;
-                quizOptions.appendChild(label);
-            });
-        }
-    }
-    
-    if (templateId === 'task-template-puzzle' && currentTask.content && currentTask.content.pieces) {
-        const puzzleGrid = clone.querySelector('#puzzle-grid');
-        if (puzzleGrid) {
-            puzzleGrid.innerHTML = '';
-            
-            currentTask.content.pieces.forEach((piece, index) => {
-                const pieceDiv = document.createElement('div');
-                pieceDiv.className = 'puzzle-piece bg-white border border-gray-300 rounded-lg p-3 text-center cursor-move';
-                pieceDiv.setAttribute('data-piece', index);
-                pieceDiv.textContent = piece;
-                puzzleGrid.appendChild(pieceDiv);
-            });
-        }
-    }
-    
-    if (templateId === 'task-template-image' && currentTask.content && currentTask.content.required_elements) {
-        const requiredElements = clone.querySelector('.required-elements');
-        const requiredElementsList = clone.querySelector('.required-elements-list');
-        
-        if (requiredElements && requiredElementsList && currentTask.content.required_elements.length > 0) {
-            requiredElements.style.display = 'block';
-            currentTask.content.required_elements.forEach(element => {
-                const li = document.createElement('li');
-                li.textContent = element;
-                requiredElementsList.appendChild(li);
-            });
-        }
-    }
-    
-    if (templateId === 'task-template-code' && currentTask.content && currentTask.content.expected_output) {
-        const expectedOutput = clone.querySelector('.expected-output');
-        if (expectedOutput) {
-            expectedOutput.style.display = 'block';
-        }
-    }
-    
-    if (templateId === 'task-template-cipher' && currentTask.content && currentTask.content.hint) {
-        const hintContainer = clone.querySelector('.hint-container');
-        if (hintContainer) {
-            hintContainer.style.display = 'block';
-        }
-    }
-    
-    if (templateId === 'task-template-location' && currentTask.content) {
-        if (currentTask.content.coordinates) {
-            const coordinatesContainer = clone.querySelector('.coordinates-container');
-            if (coordinatesContainer) {
-                coordinatesContainer.style.display = 'block';
-            }
-        }
-        
-        if (currentTask.content.qr_code) {
-            const qrContainer = clone.querySelector('.qr-container');
-            if (qrContainer) {
-                qrContainer.style.display = 'block';
-            }
-        }
-    }
-    
-    if (currentTask.hints_available && currentTask.hints_available > 0) {
-        const hintsSection = clone.querySelector('.hints-section');
-        if (hintsSection) {
-            hintsSection.style.display = 'block';
-        }
-    }
-    
     const taskContent = document.getElementById('task-content');
     if (taskContent) {
         taskContent.innerHTML = '';
@@ -2013,6 +2240,13 @@ function displayTask(taskData) {
         const modal = document.getElementById('task-modal');
         if (modal) {
             modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden'; // Блокируем скролл страницы
+            
+            // Устанавливаем фокус на первое поле ввода если есть
+            setTimeout(() => {
+                const firstInput = modal.querySelector('input, textarea, button');
+                if (firstInput) firstInput.focus();
+            }, 100);
         }
         
         initTaskSpecificFeatures();
@@ -2022,40 +2256,30 @@ function displayTask(taskData) {
 function displayTaskError(message = 'Не удалось загрузить задание') {
     const taskContent = document.getElementById('task-content');
     if (taskContent) {
-        const errorTemplate = document.getElementById('task-template-error');
-        if (!errorTemplate) {
-            taskContent.innerHTML = `
-                <div class="text-center py-8">
-                    <div class="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
-                        <i class="fas fa-exclamation-triangle text-red-600 text-2xl"></i>
-                    </div>
-                    <h3 class="text-xl font-bold text-gray-800 mb-2">Ошибка загрузки задания</h3>
-                    <p class="text-gray-600 mb-6">${message}</p>
-                    <div class="space-y-3">
-                        <button onclick="retryLoadTask()"
-                                class="w-full px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium">
-                            <i class="fas fa-redo mr-2"></i> Повторить попытку
-                        </button>
-                        <button onclick="closeTaskModal()"
-                                class="w-full px-6 py-3 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300">
-                            Закрыть
-                        </button>
-                    </div>
+        taskContent.innerHTML = `
+            <div class="text-center py-8">
+                <div class="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-exclamation-triangle text-red-600 text-2xl"></i>
                 </div>
-            `;
-        } else {
-            const clone = errorTemplate.content.cloneNode(true);
-            const errorMessage = clone.getElementById('error-message');
-            if (errorMessage) {
-                errorMessage.textContent = message;
-            }
-            taskContent.innerHTML = '';
-            taskContent.appendChild(clone);
-        }
+                <h3 class="text-xl font-bold text-gray-800 mb-2">Ошибка загрузки задания</h3>
+                <p class="text-gray-600 mb-6">${message}</p>
+                <div class="space-y-3">
+                    <button onclick="retryLoadTask()"
+                            class="w-full px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium">
+                        <i class="fas fa-redo mr-2"></i> Повторить попытку
+                    </button>
+                    <button onclick="closeTaskModal()"
+                            class="w-full px-6 py-3 bg-gray-200 text-gray-800 rounded-lg font-medium hover:bg-gray-300">
+                        Закрыть
+                    </button>
+                </div>
+            </div>
+        `;
         
         const modal = document.getElementById('task-modal');
         if (modal) {
             modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
         }
     }
 }
@@ -2063,59 +2287,41 @@ function displayTaskError(message = 'Не удалось загрузить за
 function displayTaskResult(result) {
     const taskContent = document.getElementById('task-content');
     if (taskContent) {
-        const resultTemplate = document.getElementById('task-template-result');
-        if (!resultTemplate) {
-            taskContent.innerHTML = `
-                <div class="text-center py-8">
-                    <div class="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-6">
-                        <i class="fas fa-check text-green-600 text-3xl"></i>
-                    </div>
-                    <h3 class="text-2xl font-bold text-gray-800 mb-2">Задание выполнено!</h3>
-                    <p class="text-gray-600 mb-2">${result.task?.title || 'Задание'}</p>
-                    
-                    <div class="bg-gray-50 rounded-xl p-6 mb-8 max-w-sm mx-auto">
-                        <div class="space-y-4">
-                            <div class="flex justify-between items-center">
-                                <span class="text-gray-600">Награда:</span>
-                                <span class="font-bold text-green-600">+${result.task?.points || 0} очков</span>
-                            </div>
-                            <div class="flex justify-between items-center">
-                                <span class="text-gray-600">Получено XP:</span>
-                                <span class="font-bold text-blue-600">+${result.task?.xp_earned || 0} XP</span>
-                            </div>
-                            <div class="flex justify-between items-center">
-                                <span class="text-gray-600">Статус:</span>
-                                <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-                                    <i class="fas fa-check mr-1"></i> Выполнено
-                                </span>
-                            </div>
+        taskContent.innerHTML = `
+            <div class="text-center py-8">
+                <div class="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-6">
+                    <i class="fas fa-check text-green-600 text-3xl"></i>
+                </div>
+                <h3 class="text-2xl font-bold text-gray-800 mb-2">Задание выполнено!</h3>
+                <p class="text-gray-600 mb-2">${result.task?.title || 'Задание'}</p>
+                
+                <div class="bg-gray-50 rounded-xl p-6 mb-8 max-w-sm mx-auto">
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">Награда:</span>
+                            <span class="font-bold text-green-600">+${result.task?.points || 0} очков</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">Получено XP:</span>
+                            <span class="font-bold text-blue-600">+${result.task?.xp_earned || 0} XP</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600">Статус:</span>
+                            <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                                <i class="fas fa-check mr-1"></i> Выполнено
+                            </span>
                         </div>
                     </div>
-                    
-                    <div class="text-sm text-gray-500 mb-8">${result.message || 'Задание успешно выполнено!'}</div>
-                    
-                    <button onclick="closeTaskModalAndRefresh()"
-                            class="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg font-bold hover:from-blue-600 hover:to-indigo-700">
-                        Продолжить маршрут
-                    </button>
                 </div>
-            `;
-        } else {
-            const clone = resultTemplate.content.cloneNode(true);
-            
-            const resultTitle = clone.getElementById('result-title');
-            const resultPoints = clone.getElementById('result-points');
-            const resultXp = clone.getElementById('result-xp');
-            const resultMessage = clone.getElementById('result-message');
-            
-            if (resultTitle) resultTitle.textContent = result.task?.title || 'Задание';
-            if (resultPoints) resultPoints.textContent = `+${result.task?.points || 0} очков`;
-            if (resultXp) resultXp.textContent = `+${result.task?.xp_earned || 0} XP`;
-            if (resultMessage) resultMessage.textContent = result.message || 'Задание успешно выполнено!';
-            
-            taskContent.innerHTML = '';
-            taskContent.appendChild(clone);
-        }
+                
+                <div class="text-sm text-gray-500 mb-8">${result.message || 'Задание успешно выполнено!'}</div>
+                
+                <button onclick="closeTaskModalAndRefresh()"
+                        class="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg font-bold hover:from-blue-600 hover:to-indigo-700">
+                    Продолжить маршрут
+                </button>
+            </div>
+        `;
         
         const modal = document.getElementById('task-modal');
         if (modal) {
@@ -2151,34 +2357,81 @@ function initTextTask() {
 }
 
 function initImageTask() {
-    const fileInput = document.getElementById('task-photo-input');
+    // Кнопка "Сделать фото"
+    const takePhotoBtn = document.getElementById('take-photo-btn');
+    const fileInput = document.getElementById('photo-file-input');
+    
+    if (takePhotoBtn && fileInput) {
+        takePhotoBtn.addEventListener('click', function() {
+            fileInput.setAttribute('capture', 'environment');
+            fileInput.click();
+        });
+    }
+    
+    // Кнопка "Выбрать из галереи"
+    const choosePhotoBtn = document.getElementById('choose-photo-btn');
+    if (choosePhotoBtn && fileInput) {
+        choosePhotoBtn.addEventListener('click', function() {
+            fileInput.removeAttribute('capture');
+            fileInput.click();
+        });
+    }
+    
+    // Обработка выбора файла
     if (fileInput) {
         fileInput.addEventListener('change', function(e) {
-            previewTaskPhoto(this);
+            if (e.target.files && e.target.files[0]) {
+                handlePhotoFileSelect(e.target.files[0]);
+            }
         });
     }
 }
 
-function previewTaskPhoto(input) {
-    const previewContainer = document.getElementById('photo-preview-container');
-    const previewImage = document.getElementById('photo-preview-image');
-    const filename = document.getElementById('photo-filename');
-    const filesize = document.getElementById('photo-filesize');
+function handlePhotoFileSelect(file) {
+    if (!file) return;
     
-    if (input.files && input.files[0]) {
-        const file = input.files[0];
-        const reader = new FileReader();
-        
-        reader.onload = function(e) {
-            previewImage.src = e.target.result;
-            previewContainer.classList.remove('hidden');
-            
-            if (filename) filename.textContent = file.name;
-            if (filesize) filesize.textContent = formatFileSize(file.size);
-        };
-        
-        reader.readAsDataURL(file);
+    // Проверка типа файла
+    if (!file.type.match('image.*')) {
+        showNotification('Ошибка', 'Пожалуйста, выберите изображение (JPEG, PNG, GIF)', 'error');
+        return;
     }
+    
+    // Проверка размера файла
+    if (file.size > 10 * 1024 * 1024) { // 10MB
+        showNotification('Ошибка', 'Файл слишком большой (максимум 10MB)', 'error');
+        return;
+    }
+    
+    // Показываем индикатор загрузки
+    const loading = document.getElementById('photo-loading');
+    if (loading) loading.classList.remove('hidden');
+    
+    const reader = new FileReader();
+    
+    reader.onload = function(e) {
+        // Обновляем предпросмотр
+        const previewImage = document.getElementById('photo-preview-image');
+        const previewContainer = document.getElementById('photo-preview-container');
+        const filename = document.getElementById('photo-filename');
+        const filesize = document.getElementById('photo-filesize');
+        const uploadButton = document.getElementById('upload-button-container');
+        
+        if (previewImage) previewImage.src = e.target.result;
+        if (previewContainer) previewContainer.classList.remove('hidden');
+        if (filename) filename.textContent = `Имя: ${file.name}`;
+        if (filesize) filesize.textContent = `Размер: ${formatFileSize(file.size)}`;
+        if (uploadButton) uploadButton.classList.remove('hidden');
+        
+        // Скрываем индикатор загрузки
+        if (loading) loading.classList.add('hidden');
+    };
+    
+    reader.onerror = function() {
+        showNotification('Ошибка', 'Не удалось загрузить файл', 'error');
+        if (loading) loading.classList.add('hidden');
+    };
+    
+    reader.readAsDataURL(file);
 }
 
 function formatFileSize(bytes) {
@@ -2191,96 +2444,46 @@ function formatFileSize(bytes) {
 
 function removePhotoPreview() {
     const previewContainer = document.getElementById('photo-preview-container');
-    const fileInput = document.getElementById('task-photo-input');
+    const fileInput = document.getElementById('photo-file-input');
+    const uploadButton = document.getElementById('upload-button-container');
+    const description = document.getElementById('photo-description');
     
     if (previewContainer) previewContainer.classList.add('hidden');
     if (fileInput) fileInput.value = '';
+    if (uploadButton) uploadButton.classList.add('hidden');
+    if (description) description.value = '';
 }
 
 function initQuizTask() {
-    const options = document.querySelectorAll('#quiz-options label');
-    options.forEach(option => {
-        option.addEventListener('click', function(e) {
-            if (e.target.type === 'radio' || e.target.type === 'checkbox') {
-                return;
-            }
-            
-            const input = this.querySelector('input');
-            if (input.type === 'radio') {
-                options.forEach(opt => {
-                    opt.classList.remove('bg-blue-50', 'border-blue-300');
-                });
-                this.classList.add('bg-blue-50', 'border-blue-300');
-                input.checked = true;
-            } else {
-                this.classList.toggle('bg-blue-50');
-                this.classList.toggle('border-blue-300');
-                input.checked = !input.checked;
-            }
-        });
-    });
+    // Инициализация викторины будет реализована позже
+    console.log('Initializing quiz task');
 }
 
 function initCodeTask() {
-    const textarea = document.getElementById('code-answer');
-    if (textarea) {
-        textarea.addEventListener('keydown', function(e) {
-            if (e.key === 'Tab') {
-                e.preventDefault();
-                const start = this.selectionStart;
-                const end = this.selectionEnd;
-                
-                this.value = this.value.substring(0, start) + '    ' + this.value.substring(end);
-                this.selectionStart = this.selectionEnd = start + 4;
-            }
-        });
-    }
+    // Инициализация задания с кодом
+    console.log('Initializing code task');
 }
 
 function initPuzzleTask() {
-    const pieces = document.querySelectorAll('.puzzle-piece');
-    let draggedPiece = null;
-    
-    pieces.forEach(piece => {
-        piece.setAttribute('draggable', true);
-        
-        piece.addEventListener('dragstart', function(e) {
-            draggedPiece = this;
-            setTimeout(() => {
-                this.classList.add('dragging');
-            }, 0);
-        });
-        
-        piece.addEventListener('dragend', function() {
-            this.classList.remove('dragging');
-            draggedPiece = null;
-        });
-        
-        piece.addEventListener('dragover', function(e) {
-            e.preventDefault();
-        });
-        
-        piece.addEventListener('drop', function(e) {
-            e.preventDefault();
-            if (draggedPiece && draggedPiece !== this) {
-                const temp = this.innerHTML;
-                this.innerHTML = draggedPiece.innerHTML;
-                draggedPiece.innerHTML = temp;
-                
-                const tempData = this.getAttribute('data-piece');
-                this.setAttribute('data-piece', draggedPiece.getAttribute('data-piece'));
-                draggedPiece.setAttribute('data-piece', tempData);
-            }
-        });
-    });
+    // Инициализация головоломки
+    console.log('Initializing puzzle task');
 }
 
 function initLocationTask() {
-    getCurrentLocation();
+    getCurrentLocationForTask();
 }
 
-function getCurrentLocation() {
+function getCurrentLocationForTask() {
     if (!navigator.geolocation) {
+        const locationInfo = document.getElementById('location-info');
+        if (locationInfo) {
+            locationInfo.innerHTML = `
+                <div class="text-red-600">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    Геолокация не поддерживается вашим браузером
+                </div>
+            `;
+        }
         showNotification('Ошибка', 'Геолокация не поддерживается вашим браузером', 'error');
         return;
     }
@@ -2327,24 +2530,6 @@ function getCurrentLocation() {
             if (submitBtn) {
                 submitBtn.disabled = false;
             }
-            
-            if (locationWatchId) {
-                navigator.geolocation.clearWatch(locationWatchId);
-            }
-            
-            locationWatchId = navigator.geolocation.watchPosition(
-                function(pos) {
-                    currentTaskLocation = {
-                        lat: pos.coords.latitude,
-                        lng: pos.coords.longitude,
-                        accuracy: pos.coords.accuracy
-                    };
-                },
-                function(error) {
-                    console.warn('Ошибка геолокации:', error);
-                },
-                { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-            );
         },
         function(error) {
             console.error('Ошибка получения локации:', error);
@@ -2364,27 +2549,11 @@ function getCurrentLocation() {
     );
 }
 
-function showLocationOnMap() {
-    if (currentTask && currentTask.content && currentTask.content.coordinates && navigationMap) {
-        const lat = currentTask.content.coordinates.lat;
-        const lng = currentTask.content.coordinates.lng;
-        
-        navigationMap.setView([lat, lng], 16);
-        
-        L.marker([lat, lng], {
-            icon: L.divIcon({
-                html: '<div style="width: 32px; height: 32px; background-color: red; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"></div>',
-                className: 'target-location-marker',
-                iconSize: [32, 32],
-                iconAnchor: [16, 32]
-            })
-        }).addTo(navigationMap).bindPopup('Целевая точка задания');
-        
-        showNotification('Карта', 'Целевая точка показана на карте', 'info');
-    }
-}
+// ============================================
+// ФУНКЦИИ ОТПРАВКИ ЗАДАНИЙ
+// ============================================
 
-function submitTextTask() {
+async function submitTextTask() {
     const answer = document.getElementById('task-text-answer')?.value.trim();
     
     if (!answer) {
@@ -2392,130 +2561,123 @@ function submitTextTask() {
         return;
     }
     
-    submitTaskCompletion({ answer: answer });
+    await submitTaskCompletion({ answer: answer });
 }
 
-function submitPhotoTask() {
-    const fileInput = document.getElementById('task-photo-input');
+async function uploadTaskPhoto() {
+    const fileInput = document.getElementById('photo-file-input');
     const description = document.getElementById('photo-description')?.value || '';
+    const uploadBtn = document.getElementById('upload-photo-btn');
     
     if (!fileInput.files || fileInput.files.length === 0) {
         showNotification('Внимание', 'Выберите фото', 'warning');
         return;
     }
     
-    const formData = new FormData();
-    formData.append('photo', fileInput.files[0]);
-    formData.append('comment', description);
-    formData.append('answer', 'photo_submission');
+    const file = fileInput.files[0];
+    
+    // Проверка размера
+    if (file.size > 10 * 1024 * 1024) {
+        showNotification('Ошибка', 'Файл слишком большой (макс. 10MB)', 'error');
+        return;
+    }
+    
+    // Блокируем кнопку
+    if (uploadBtn) {
+        uploadBtn.disabled = true;
+        uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Загружается...';
+    }
     
     showLoading('Загружаем фото...');
     
-    const token = getCsrfToken();
-    
-    fetch(`{{ url('/api/tasks') }}${currentTaskId}/complete`, {
-        method: 'POST',
-        headers: {
-            'X-CSRF-TOKEN': token,
-            'Accept': 'application/json'
-        },
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
+    try {
+        const formData = new FormData();
+        formData.append('photo', file);
+        formData.append('comment', description);
+        formData.append('answer', 'photo_uploaded');
+        
+        const token = getCsrfToken();
+        
+        const response = await fetch(`/api/tasks/${currentTaskId}/complete`, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': token,
+                'Accept': 'application/json'
+            },
+            body: formData
+        });
+        
+        const data = await response.json();
+        
         if (data.success) {
-            displayTaskResult(data.data);
+            showNotification('Успех', 'Фото успешно загружено!', 'success');
+            displayTaskResult(data.data || data);
         } else {
             showNotification('Ошибка', data.message || 'Ошибка загрузки', 'error');
         }
-    })
-    .catch(error => {
+    } catch (error) {
         console.error('Ошибка загрузки фото:', error);
-        showNotification('Ошибка', 'Ошибка загрузки фото', 'error');
-    })
-    .finally(() => hideLoading());
-}
-
-function submitQuizTask() {
-    let answer;
-    const multipleChoice = document.querySelector('input[name="quiz-option"]')?.type === 'checkbox';
-    
-    if (multipleChoice) {
-        const selected = Array.from(document.querySelectorAll('input[name="quiz-option"]:checked'))
-            .map(input => input.value);
-        answer = selected.join(', ');
-    } else {
-        const selected = document.querySelector('input[name="quiz-option"]:checked');
-        if (!selected) {
-            showNotification('Внимание', 'Выберите вариант ответа', 'warning');
-            return;
+        showNotification('Ошибка', 'Ошибка при загрузке фото', 'error');
+    } finally {
+        hideLoading();
+        
+        // Восстанавливаем кнопку
+        if (uploadBtn) {
+            uploadBtn.disabled = false;
+            uploadBtn.innerHTML = '<i class="fas fa-upload"></i> Загрузить фото';
         }
-        answer = selected.value;
     }
-    
-    submitTaskCompletion({ answer: answer });
 }
 
-function submitCodeTask() {
-    const code = document.getElementById('code-answer')?.value.trim();
-    
-    if (!code) {
-        showNotification('Внимание', 'Введите код', 'warning');
-        return;
-    }
-    
-    submitTaskCompletion({ code: code });
+async function submitQuizTask() {
+    showNotification('Информация', 'Функция викторины в разработке', 'info');
 }
 
-function submitCipherTask() {
-    const decodedText = document.getElementById('cipher-answer')?.value.trim();
-    
-    if (!decodedText) {
-        showNotification('Внимание', 'Введите расшифрованный текст', 'warning');
-        return;
-    }
-    
-    submitTaskCompletion({ decoded_text: decodedText });
+async function submitCodeTask() {
+    showNotification('Информация', 'Функция задания с кодом в разработке', 'info');
 }
 
-function submitPuzzleTask() {
-    const pieces = Array.from(document.querySelectorAll('.puzzle-piece'))
-        .map(piece => piece.getAttribute('data-piece'));
-    
-    submitTaskCompletion({ solution: pieces });
+async function submitCipherTask() {
+    showNotification('Информация', 'Функция шифра в разработке', 'info');
 }
 
-function submitLocationTask() {
+async function submitPuzzleTask() {
+    showNotification('Информация', 'Функция головоломки в разработке', 'info');
+}
+
+async function submitLocationTask() {
     if (!currentTaskLocation) {
         showNotification('Внимание', 'Сначала определите ваше местоположение', 'warning');
-        getCurrentLocation();
+        getCurrentLocationForTask();
         return;
     }
     
-    submitTaskCompletion({
+    await submitTaskCompletion({
         latitude: currentTaskLocation.lat,
         longitude: currentTaskLocation.lng
     });
-    
-    if (locationWatchId) {
-        navigator.geolocation.clearWatch(locationWatchId);
-        locationWatchId = null;
-    }
 }
 
 async function submitTaskCompletion(data) {
     showLoading('Проверяем ответ...');
     
     try {
-        const result = await apiFetch(`/api/tasks/${currentTaskId}/complete`, {
+        const result = await fetch(`/api/tasks/${currentTaskId}/complete`, {
             method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': getCsrfToken(),
+                'Accept': 'application/json'
+            },
             body: JSON.stringify(data)
         });
         
-        if (result.success) {
-            displayTaskResult(result.data);
+        const response = await result.json();
+        
+        if (response.success) {
+            displayTaskResult(response.data || response);
         } else {
-            showNotification('Ошибка', result.message || 'Ошибка при выполнении задания', 'error');
+            showNotification('Ошибка', response.message || 'Ошибка при выполнении задания', 'error');
         }
     } catch (error) {
         console.error('Ошибка выполнения задания:', error);
@@ -2525,22 +2687,33 @@ async function submitTaskCompletion(data) {
     }
 }
 
-function requestHint() {
+async function requestHint() {
     showLoading('Получаем подсказку...');
     
-    apiFetch(`/api/tasks/${currentTaskId}/hint`)
-    .then(data => {
+    try {
+        const response = await fetch(`/api/tasks/${currentTaskId}/hint`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': getCsrfToken(),
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({})
+        });
+        
+        const data = await response.json();
+        
         if (data.success) {
-            showNotification('Подсказка', data.data.hint, 'info');
+            showNotification('Подсказка', data.data?.hint || 'Подсказка получена', 'info');
         } else {
             showNotification('Ошибка', data.message || 'Не удалось получить подсказку', 'error');
         }
-    })
-    .catch(error => {
+    } catch (error) {
         console.error('Ошибка получения подсказки:', error);
         showNotification('Ошибка', 'Ошибка получения подсказки', 'error');
-    })
-    .finally(() => hideLoading());
+    } finally {
+        hideLoading();
+    }
 }
 
 function retryLoadTask() {
@@ -2560,6 +2733,7 @@ function closeTaskModal() {
     const modal = document.getElementById('task-modal');
     if (modal) {
         modal.classList.add('hidden');
+        document.body.style.overflow = ''; // Разблокируем скролл страницы
     }
     currentTask = null;
     currentTaskId = null;
@@ -2571,97 +2745,131 @@ function closeTaskModal() {
 }
 
 // ============================================
-// ОБРАБОТЧИКИ СОБЫТИЙ
+// ОБРАБОТЧИКИ СОБЫТИЙ И ИНИЦИАЛИЗАЦИЯ
 // ============================================
 
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM загружен, инициализируем...');
+    console.log('DOM загружен, инициализируем навигацию...');
+    
+    // Инициализация карты
+    setTimeout(() => {
+        initNavigationMap();
+    }, 100);
     
     // Боковая панель
-    document.getElementById('toggle-sidebar')?.addEventListener('click', () => {
-        document.getElementById('sidebar')?.classList.add('active');
-    });
-
-    document.getElementById('close-sidebar')?.addEventListener('click', () => {
-        document.getElementById('sidebar')?.classList.remove('active');
-    });
+    const toggleSidebar = document.getElementById('toggle-sidebar');
+    const closeSidebar = document.getElementById('close-sidebar');
+    const sidebar = document.getElementById('sidebar');
+    
+    if (toggleSidebar && sidebar) {
+        toggleSidebar.addEventListener('click', () => {
+            sidebar.classList.add('active');
+        });
+    }
+    
+    if (closeSidebar && sidebar) {
+        closeSidebar.addEventListener('click', () => {
+            sidebar.classList.remove('active');
+        });
+    }
 
     // Переключение вкладок
     document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const tabId = btn.dataset.tab;
+        btn.addEventListener('click', function() {
+            const tabId = this.getAttribute('data-tab');
             
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            // Убираем активный класс у всех кнопок
+            document.querySelectorAll('.tab-btn').forEach(b => {
+                b.classList.remove('active');
+            });
             
-            btn.classList.add('active');
-            document.getElementById(`tab-${tabId}`)?.classList.add('active');
+            // Убираем активный класс у всех контентов
+            document.querySelectorAll('.tab-content').forEach(c => {
+                c.classList.remove('active');
+            });
+            
+            // Добавляем активный класс текущей кнопке
+            this.classList.add('active');
+            
+            // Показываем соответствующий контент
+            const tabContent = document.getElementById(`tab-${tabId}`);
+            if (tabContent) {
+                tabContent.classList.add('active');
+            }
         });
     });
 
     // Кнопка "Мое местоположение"
-    document.getElementById('my-location')?.addEventListener('click', () => {
-        if (currentPosition && navigationMap) {
-            navigationMap.setView([currentPosition.lat, currentPosition.lng], 15);
-            showNotification('Геолокация', 'Карта центрирована на вашем местоположении', 'info');
-        } else if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition((position) => {
-                if (navigationMap) {
-                    navigationMap.setView([position.coords.latitude, position.coords.longitude], 15);
-                    showNotification('Геолокация', 'Карта центрирована на вашем местоположении', 'info');
-                }
-            });
-        }
-    });
+    const myLocationBtn = document.getElementById('my-location');
+    if (myLocationBtn) {
+        myLocationBtn.addEventListener('click', () => {
+            if (currentPosition && navigationMap) {
+                navigationMap.setView([currentPosition.lat, currentPosition.lng], 15);
+                showNotification('Геолокация', 'Карта центрирована на вашем местоположении', 'info');
+            } else if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((position) => {
+                    if (navigationMap) {
+                        const latlng = [position.coords.latitude, position.coords.longitude];
+                        navigationMap.setView(latlng, 15);
+                        showNotification('Геолокация', 'Карта центрирована на вашем местоположении', 'info');
+                    }
+                }, null, { enableHighAccuracy: true, timeout: 5000 });
+            }
+        });
+    }
 
     // Кнопка "Центрировать маршрут"
-    document.getElementById('center-route')?.addEventListener('click', () => {
-        if (routeLayer && navigationMap) {
-            navigationMap.fitBounds(routeLayer.getBounds(), { padding: [50, 50] });
-            showNotification('Карта', 'Карта центрирована на маршруте', 'info');
-        }
-    });
+    const centerRouteBtn = document.getElementById('center-route');
+    if (centerRouteBtn && navigationMap) {
+        centerRouteBtn.addEventListener('click', () => {
+            if (routeLayer) {
+                navigationMap.fitBounds(routeLayer.getBounds(), { padding: [50, 50] });
+                showNotification('Карта', 'Карта центрирована на маршруте', 'info');
+            } else if (checkpointMarkers.length > 0) {
+                // Если нет маршрута, центрируем по точкам
+                const group = new L.featureGroup(checkpointMarkers.map(m => m.marker || m));
+                navigationMap.fitBounds(group.getBounds(), { padding: [50, 50] });
+                showNotification('Карта', 'Карта центрирована на точках маршрута', 'info');
+            }
+        });
+    }
 
     // Кнопка "Скрыть/показать панель"
-    document.getElementById('toggle-header')?.addEventListener('click', () => {
-        const header = document.getElementById('navigationHeader');
-        const btn = document.getElementById('toggle-header');
-        
-        if (!header || !btn) return;
-        
-        if (isHeaderVisible) {
-            header.classList.add('hidden');
-            btn.innerHTML = '<i class="fas fa-eye"></i>';
-            btn.title = 'Показать панель';
-        } else {
-            header.classList.remove('hidden');
-            btn.innerHTML = '<i class="fas fa-eye-slash"></i>';
-            btn.title = 'Скрыть панель';
-        }
-        
-        isHeaderVisible = !isHeaderVisible;
-        
-        setTimeout(() => {
-            if (navigationMap) {
-                navigationMap.invalidateSize();
+    const toggleHeaderBtn = document.getElementById('toggle-header');
+    const navigationHeader = document.getElementById('navigationHeader');
+    
+    if (toggleHeaderBtn && navigationHeader) {
+        toggleHeaderBtn.addEventListener('click', () => {
+            if (isHeaderVisible) {
+                navigationHeader.classList.add('hidden');
+                toggleHeaderBtn.innerHTML = '<i class="fas fa-eye"></i>';
+                toggleHeaderBtn.title = 'Показать панель';
+            } else {
+                navigationHeader.classList.remove('hidden');
+                toggleHeaderBtn.innerHTML = '<i class="fas fa-eye-slash"></i>';
+                toggleHeaderBtn.title = 'Скрыть панель';
             }
-        }, 300);
-    });
-
-    // Кнопка "Сделать фото"
-    document.getElementById('take-photo')?.addEventListener('click', () => {
-        showNotification('Фото', 'Используйте задание с фото для загрузки снимков', 'info');
-    });
+            
+            isHeaderVisible = !isHeaderVisible;
+            
+            setTimeout(() => {
+                if (navigationMap) {
+                    navigationMap.invalidateSize();
+                }
+            }, 300);
+        });
+    }
 
     // Обработчики для кнопок заданий
     document.addEventListener('click', function(e) {
+        // Обработка кнопок заданий
         const taskBtn = e.target.closest('[onclick*="completeTask"]');
         if (taskBtn) {
             e.preventDefault();
             e.stopPropagation();
             
             const onclick = taskBtn.getAttribute('onclick');
-            const match = onclick?.match(/completeTask\((\d+)\)/);
+            const match = onclick.match(/completeTask\((\d+)\)/);
             if (match) {
                 const taskId = parseInt(match[1]);
                 console.log('Нажата кнопка задания ID:', taskId);
@@ -2671,51 +2879,32 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Закрытие модального окна при клике вне его
         const modal = document.getElementById('task-modal');
-        if (modal && !modal.classList.contains('hidden') && 
-            e.target === modal) {
+        if (modal && !modal.classList.contains('hidden') && e.target === modal) {
             closeTaskModal();
         }
     });
     
-    // Инициализация карты
-    setTimeout(() => {
-        initNavigationMap();
-    }, 100);
+    // Обработка Escape для закрытия модальных окон
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const modal = document.getElementById('task-modal');
+            if (modal && !modal.classList.contains('hidden')) {
+                closeTaskModal();
+            }
+        }
+    });
     
     // Показываем панель на мобильных устройствах
-    if (window.innerWidth < 768) {
+    if (window.innerWidth < 768 && sidebar) {
         setTimeout(() => {
-            document.getElementById('sidebar')?.classList.add('active');
+            sidebar.classList.add('active');
         }, 1500);
     }
     
     // Показываем информационную панель через 2 секунды
     setTimeout(showInfoPanel, 2000);
     
-    // Автоскрытие верхней панели при скролле
-    let scrollTimeout;
-    window.addEventListener('scroll', () => {
-        const header = document.getElementById('navigationHeader');
-        if (!header) return;
-        
-        const currentScroll = window.pageYOffset;
-        
-        clearTimeout(scrollTimeout);
-        
-        if (currentScroll > lastScrollPosition && currentScroll > 100) {
-            header.classList.add('hidden');
-        } else {
-            header.classList.remove('hidden');
-        }
-        
-        lastScrollPosition = currentScroll;
-        
-        scrollTimeout = setTimeout(() => {
-            header.classList.remove('hidden');
-        }, 3000);
-    });
-    
-    console.log('Инициализация завершена');
+    console.log('Инициализация навигации завершена');
 });
 
 // Очистка при разгрузке страницы
@@ -2728,5 +2917,19 @@ window.addEventListener('beforeunload', () => {
         navigator.geolocation.clearWatch(locationWatchId);
     }
 });
+
+// Глобальные функции для доступа из HTML
+window.completeTask = completeTask;
+window.arriveAtCheckpoint = arriveAtCheckpoint;
+window.skipCheckpoint = skipCheckpoint;
+window.closeTaskModal = closeTaskModal;
+window.retryLoadTask = retryLoadTask;
+window.closeTaskModalAndRefresh = closeTaskModalAndRefresh;
+window.removePhotoPreview = removePhotoPreview;
+window.uploadTaskPhoto = uploadTaskPhoto;
+window.requestHint = requestHint;
+window.getCurrentLocation = getCurrentLocationForTask;
+window.showNotification = showNotification;
+
 </script>
 @endpush
