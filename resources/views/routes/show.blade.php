@@ -281,16 +281,28 @@
                                     <p class="text-gray-700 mb-4">{{ $point->description }}</p>
                                 @endif
                                 
-                                @if($point->photos && count($point->photos) > 0)
+                                @php
+    // Преобразуем photos в массив если нужно
+    $pointPhotos = [];
+    if (!empty($point->photos)) {
+        if (is_array($point->photos)) {
+            $pointPhotos = $point->photos;
+        } elseif (is_string($point->photos)) {
+            $pointPhotos = json_decode($point->photos, true) ?? [];
+        }
+    }
+@endphp
+
+@if(count($pointPhotos) > 0)
                                     <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
-                                        @foreach($point->photos as $photo)
-                                            <div class="rounded-lg overflow-hidden">
-                                                <img src="{{ Storage::url($photo) }}" alt="{{ $point->title }}" 
-                                                     class="w-full h-32 object-cover cursor-pointer hover:opacity-90 transition duration-300"
-                                                     onclick="openImageModal('{{ Storage::url($photo) }}')">
-                                            </div>
-                                        @endforeach
-                                    </div>
+    @foreach($pointPhotos as $photo)
+        <div class="rounded-lg overflow-hidden">
+            <img src="{{ Storage::url($photo) }}" alt="{{ $point->title }}" 
+                 class="w-full h-32 object-cover cursor-pointer hover:opacity-90 transition duration-300"
+                 onclick="openImageModal('{{ Storage::url($photo) }}')">
+        </div>
+    @endforeach
+</div>
                                 @endif
                             </div>
                         @endforeach

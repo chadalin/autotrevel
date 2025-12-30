@@ -30,23 +30,24 @@ Route::post('/logout', [EmailVerificationController::class, 'logout'])->name('lo
 
 // Маршруты
 // Маршруты для работы с маршрутами
+// Маршруты
 Route::prefix('routes')->name('routes.')->group(function () {
     // Публичные маршруты
     Route::get('/', [RouteController::class, 'index'])->name('index');
     Route::get('/create', [RouteController::class, 'create'])->name('create');
-    Route::get('/{route}', [RouteController::class, 'show'])->name('show');
+    Route::get('/{route:slug}', [RouteController::class, 'show'])->name('show'); // ИЗМЕНЕНО: добавлено :slug
     Route::get('/{route}/export/gpx', [RouteController::class, 'exportGpx'])->name('export.gpx');
     
     // Маршруты требующие аутентификации
     Route::middleware(['auth'])->group(function () {
         Route::post('/', [RouteController::class, 'store'])->name('store');
-        Route::get('/{route}/edit', [RouteController::class, 'edit'])->name('edit');
+        Route::get('/{route:slug}/edit', [RouteController::class, 'edit'])->name('edit'); // ИЗМЕНЕНО
         Route::put('/{route}', [RouteController::class, 'update'])->name('update');
         Route::delete('/{route}', [RouteController::class, 'destroy'])->name('destroy');
-        Route::post('/{route}/save', [RouteController::class, 'save'])->name('save');
+        Route::post('/{route:slug}/save', [RouteController::class, 'save'])->name('save'); // ИЗМЕНЕНО
         
         // Маршрут для подтверждения прохождения
-        Route::get('/{route}/complete', [RouteController::class, 'complete'])->name('complete');
+        Route::get('/{route:slug}/complete', [RouteController::class, 'complete'])->name('complete'); // ИЗМЕНЕНО
     });
 });
    

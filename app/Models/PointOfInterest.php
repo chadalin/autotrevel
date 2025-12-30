@@ -30,6 +30,8 @@ class PointOfInterest extends Model
         'metadata' => 'array',
     ];
 
+
+     protected $appends = ['type_icon', 'type_label', 'photos_array']; 
     public function route()
     {
         return $this->belongsTo(Route::class, 'route_id');
