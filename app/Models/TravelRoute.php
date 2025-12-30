@@ -54,7 +54,18 @@ class TravelRoute extends Model
         'safety_rating' => 'float',
         'infrastructure_rating' => 'float',
     ];
+     
 
+
+    protected $appends = [
+    'difficulty_label',
+    'road_type_label',
+    'duration_formatted',
+    'start_lat',
+    'start_lng',
+    'end_lat',
+    'end_lng'
+];
     // Отношения
     public function user()
     {
@@ -165,4 +176,28 @@ class TravelRoute extends Model
     {
         return $this->hasMany(Review::class, 'route_id');
     }
+
+    public function getStartLatAttribute()
+{
+    $coords = json_decode($this->start_coordinates, true);
+    return $coords[0] ?? null;
+}
+
+public function getStartLngAttribute()
+{
+    $coords = json_decode($this->start_coordinates, true);
+    return $coords[1] ?? null;
+}
+
+public function getEndLatAttribute()
+{
+    $coords = json_decode($this->end_coordinates, true);
+    return $coords[0] ?? null;
+}
+
+public function getEndLngAttribute()
+{
+    $coords = json_decode($this->end_coordinates, true);
+    return $coords[1] ?? null;
+}
 }

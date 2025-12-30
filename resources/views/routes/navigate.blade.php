@@ -628,655 +628,265 @@ let userWatchId;
 let currentCheckpointId = {{ optional($currentCheckpoint)->id ?? 'null' }};
 let arrivedCheckpointId = null;
 let isTracking = false;
+let visitedPoints = [];
+
+// Отладочные данные - для тестирования
+const DEBUG_MODE = true;
 
 // Конфигурация карты
 const mapConfig = {
-    center: [55.7558, 37.6173], // Москва по умолчанию
+    center: [55.7558, 37.6173],
     zoom: 12,
     maxZoom: 18,
     minZoom: 8
 };
 
+// Функция для отладки
+function debugLog(message, data = null) {
+    if (DEBUG_MODE) {
+        if (data) {
+            console.log(`[DEBUG] ${message}:`, data);
+        } else {
+            console.log(`[DEBUG] ${message}`);
+        }
+    }
+}
+
 // Инициализация карты
 function initMap() {
-    console.log('Инициализация карты навигации...');
+    debugLog('Инициализация карты навигации');
     
-    map = L.map('navigation-map', {
-        zoomControl: false
-    }).setView(mapConfig.center, mapConfig.zoom);
-    
-    // Добавляем базовый слой карты
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors',
-        maxZoom: mapConfig.maxZoom
-    }).addTo(map);
-    
-    // Добавляем контроль масштаба
-    L.control.scale().addTo(map);
-    
-    // Загружаем маршрут и точки
-    loadRouteAndCheckpoints();
-    
-    // Настройка элементов управления
-    setupMapControls();
-    
-    // Пытаемся получить текущее местоположение
-    getUserLocation();
-}
-
-// Настройка элементов управления картой
-function setupMapControls() {
-    // Кнопка "Мое местоположение"
-    document.getElementById('locate-me').addEventListener('click', function() {
-        getUserLocation(true); // true = принудительно обновить
-    });
-    
-    // Кнопки масштабирования
-    document.getElementById('zoom-in').addEventListener('click', function() {
-        map.zoomIn();
-        updateZoomLevel();
-    });
-    
-    document.getElementById('zoom-out').addEventListener('click', function() {
-        map.zoomOut();
-        updateZoomLevel();
-    });
-    
-    // Кнопка полного экрана
-    document.getElementById('fullscreen-btn').addEventListener('click', function() {
-        const elem = document.getElementById('navigation-map');
-        if (!document.fullscreenElement) {
-            elem.requestFullscreen?.();
-        } else {
-            document.exitFullscreen?.();
+    try {
+        // Проверяем наличие элемента карты
+        const mapElement = document.getElementById('navigation-map');
+        if (!mapElement) {
+            console.error('❌ Элемент карты не найден');
+            showNotification('Элемент карты не найден', 'error');
+            return;
         }
-    });
-    
-    // Обновление уровня масштаба
-    map.on('zoomend', updateZoomLevel);
-}
-
-// Обновление отображения уровня масштаба
-function updateZoomLevel() {
-    document.getElementById('zoom-level').textContent = map.getZoom();
-}
-
-// Получение местоположения пользователя
-// Получение местоположения пользователя
-function getUserLocation(force = false) {
-    console.log('Запрос геолокации...', { force, isTracking });
-    
-    if (!navigator.geolocation) {
-        showNotification('Геолокация не поддерживается вашим браузером', 'error');
-        showManualLocationInput();
-        return;
-    }
-    
-    if (isTracking && !force) {
-        console.log('Уже отслеживается, пропускаем...');
-        return;
-    }
-    
-    // Проверяем разрешение
-    if (navigator.permissions && navigator.permissions.query) {
-        navigator.permissions.query({ name: 'geolocation' })
-            .then(function(permissionStatus) {
-                console.log('Статус разрешения:', permissionStatus.state);
-                
-                if (permissionStatus.state === 'denied') {
-                    showNotification('Доступ к геолокации запрещен. Разрешите доступ в настройках браузера или установите местоположение вручную.', 'error');
-                    showManualLocationInput();
-                    return;
-                }
-                
-                if (permissionStatus.state === 'prompt') {
-                    showNotification('Разрешите доступ к геолокации для работы навигатора', 'info');
-                }
-                
-                // Запрашиваем местоположение
-                requestGeolocation();
-            })
-            .catch(function(error) {
-                console.warn('Ошибка проверки разрешений:', error);
-                // Продолжаем с запросом местоположения
-                requestGeolocation();
-            });
-    } else {
-        // Для браузеров без поддержки Permissions API
-        requestGeolocation();
-    }
-}
-
-// Запрос геолокации
-function requestGeolocation() {
-    console.log('Запрос геолокации...');
-    
-    const options = {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
-    };
-    
-    navigator.geolocation.getCurrentPosition(
-        // Успех
-        function(position) {
-            console.log('Геолокация успешна:', position);
-            handleGeolocationSuccess(position);
-        },
-        // Ошибка
-        function(error) {
-            console.error('Ошибка геолокации:', error);
-            handleGeolocationError(error);
-        },
-        options
-    );
-}
-
-// Обработка успешного получения местоположения
-function handleGeolocationSuccess(position) {
-    const latlng = [position.coords.latitude, position.coords.longitude];
-    
-    console.log('Координаты получены:', latlng, 'точность:', position.coords.accuracy);
-    
-    // Создаем или обновляем маркер пользователя
-    if (!userMarker) {
-        userMarker = L.marker(latlng, {
-            icon: L.divIcon({
-                html: `
-                    <div style="
-                        width: 40px;
-                        height: 40px;
-                        background-color: #3B82F6;
-                        border-radius: 50%;
-                        border: 3px solid white;
-                        box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        color: white;
-                        animation: pulse 2s infinite;
-                    ">
-                        <i class="fas fa-user"></i>
-                    </div>
-                `,
-                className: 'user-marker',
-                iconSize: [40, 40],
-                iconAnchor: [20, 40]
-            }),
-            zIndexOffset: 1000
+        
+        debugLog('Создание карты');
+        map = L.map('navigation-map', {
+            zoomControl: false,
+            attributionControl: false
+        }).setView(mapConfig.center, mapConfig.zoom);
+        
+        // Добавляем базовый слой карты
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: mapConfig.maxZoom
         }).addTo(map);
         
-        userMarker.bindPopup('<b>Ваше местоположение</b>').openPopup();
+        // Добавляем контроль масштаба
+        L.control.scale({ imperial: false }).addTo(map);
         
-        // Добавляем круг точности
-        if (position.coords.accuracy) {
-            accuracyCircle = L.circle(latlng, {
-                radius: position.coords.accuracy,
-                className: 'accuracy-circle',
-                color: '#3B82F6',
-                fillColor: '#3B82F6',
-                weight: 1,
-                fillOpacity: 0.1
-            }).addTo(map);
-        }
-    } else {
-        userMarker.setLatLng(latlng);
-        if (accuracyCircle) {
-            accuracyCircle.setLatLng(latlng).setRadius(position.coords.accuracy);
-        }
-    }
-    
-    // Центрируем карту на пользователе
-    map.setView(latlng, 15);
-    
-    // Обновляем расстояние до текущей точки
-    updateDistanceToCheckpoint(latlng);
-    
-    // Начинаем отслеживание
-    if (!isTracking) {
-        startLocationTracking();
-    }
-    
-    showNotification('Местоположение определено', 'success');
-    
-    // Скрываем форму ручного ввода если есть
-    const manualInput = document.getElementById('manual-location-input');
-    if (manualInput) {
-        manualInput.remove();
+        // Загружаем данные
+        loadRouteAndCheckpoints();
+        
+        // Настройка элементов управления
+        setupMapControls();
+        
+        // Инициализируем посещенные точки
+        initVisitedPoints();
+        
+        // Пытаемся получить местоположение
+        getUserLocation();
+        
+        debugLog('Карта успешно инициализирована');
+        
+    } catch (error) {
+        console.error('❌ Ошибка инициализации карты:', error);
+        showNotification('Ошибка инициализации карты: ' + error.message, 'error');
     }
 }
 
-// Обработка ошибки геолокации
-function handleGeolocationError(error) {
-    let message = 'Не удалось определить ваше местоположение';
-    
-    switch(error.code) {
-        case error.PERMISSION_DENIED:
-            console.log('PERMISSION_DENIED:', error);
-            message = 'Доступ к геолокации запрещен. ';
-            
-            // Проверяем HTTPS
-            if (window.location.protocol !== 'https:') {
-                message += 'Работа геолокации требует HTTPS соединения. ';
-            }
-            
-            message += 'Разрешите доступ в настройках браузера или установите местоположение вручную.';
-            break;
-            
-        case error.POSITION_UNAVAILABLE:
-            console.log('POSITION_UNAVAILABLE:', error);
-            message = 'Информация о местоположении недоступна. Проверьте GPS или используйте ручной ввод.';
-            break;
-            
-        case error.TIMEOUT:
-            console.log('TIMEOUT:', error);
-            message = 'Время ожидания получения местоположения истекло. Попробуйте снова или используйте ручной ввод.';
-            break;
-            
-        default:
-            console.log('Unknown error:', error);
-            message = 'Произошла неизвестная ошибка при определении местоположения.';
-    }
-    
-    showNotification(message, 'error');
-    
-    // Показываем кнопку для ручного ввода местоположения
-    showManualLocationInput();
-    
-    // Если уже отслеживаем, останавливаем
-    if (userWatchId) {
-        navigator.geolocation.clearWatch(userWatchId);
-        userWatchId = null;
-        isTracking = false;
-    }
-}
-
-// Улучшенная форма для ручного ввода местоположения
-function showManualLocationInput() {
-    // Если форма уже есть, не показываем снова
-    if (document.getElementById('manual-location-input')) {
-        return;
-    }
-    
-    const manualLocationHTML = `
-        <div id="manual-location-input" class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-4 animate-slide-up">
-            <div class="flex items-center mb-3">
-                <i class="fas fa-map-marker-alt text-yellow-600 mr-2"></i>
-                <h3 class="font-bold text-yellow-800">Установить местоположение вручную</h3>
-            </div>
-            
-            <div class="space-y-3">
-                <div class="flex space-x-2">
-                    <div class="flex-1">
-                        <label class="block text-sm font-medium text-yellow-700 mb-1">Широта</label>
-                        <input type="number" step="0.000001" id="manual-lat" 
-                               placeholder="55.7558" 
-                               class="w-full p-2 border border-yellow-300 rounded focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
-                    </div>
-                    <div class="flex-1">
-                        <label class="block text-sm font-medium text-yellow-700 mb-1">Долгота</label>
-                        <input type="number" step="0.000001" id="manual-lng" 
-                               placeholder="37.6173" 
-                               class="w-full p-2 border border-yellow-300 rounded focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500">
-                    </div>
-                </div>
-                
-                <div class="text-sm text-yellow-600 mb-3">
-                    <p>Примеры координат:</p>
-                    <div class="grid grid-cols-2 gap-2 mt-1">
-                        <button type="button" onclick="setExample('moscow')" class="text-left hover:text-yellow-800">
-                            <span class="font-medium">Москва:</span> 55.7558, 37.6173
-                        </button>
-                        <button type="button" onclick="setExample('spb')" class="text-left hover:text-yellow-800">
-                            <span class="font-medium">СПб:</span> 59.9343, 30.3351
-                        </button>
-                        <button type="button" onclick="setExample('kazan')" class="text-left hover:text-yellow-800">
-                            <span class="font-medium">Казань:</span> 55.7961, 49.1064
-                        </button>
-                        <button type="button" onclick="setExample('ekb')" class="text-left hover:text-yellow-800">
-                            <span class="font-medium">Екатеринбург:</span> 56.8389, 60.6057
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="flex space-x-2">
-                    <button onclick="setManualLocation()" 
-                            class="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded font-medium flex items-center justify-center">
-                        <i class="fas fa-check mr-2"></i> Установить
-                    </button>
-                    <button onclick="useCurrentLocation()" 
-                            class="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded font-medium flex items-center justify-center">
-                        <i class="fas fa-location-arrow mr-2"></i> Попробовать снова
-                    </button>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    // Добавляем под картой
-    const mapContainer = document.querySelector('#navigation-map').parentElement;
-    const div = document.createElement('div');
-    div.innerHTML = manualLocationHTML;
-    mapContainer.appendChild(div);
-}
-
-// Установить пример координат
-function setExample(city) {
-    const examples = {
-        'moscow': { lat: 55.7558, lng: 37.6173 },
-        'spb': { lat: 59.9343, lng: 30.3351 },
-        'kazan': { lat: 55.7961, lng: 49.1064 },
-        'ekb': { lat: 56.8389, lng: 60.6057 }
-    };
-    
-    if (examples[city]) {
-        document.getElementById('manual-lat').value = examples[city].lat;
-        document.getElementById('manual-lng').value = examples[city].lng;
-    }
-}
-
-// Попробовать снова получить текущее местоположение
-function useCurrentLocation() {
-    // Скрываем форму
-    const manualInput = document.getElementById('manual-location-input');
-    if (manualInput) {
-        manualInput.remove();
-    }
-    
-    // Пробуем снова
-    getUserLocation(true);
-}
-
-// Начать отслеживание местоположения с улучшенной обработкой ошибок
-function startLocationTracking() {
-    if (userWatchId || !navigator.geolocation) {
-        return;
-    }
-    
-    console.log('Начало отслеживания местоположения...');
-    
-    const options = {
-        enableHighAccuracy: true,
-        timeout: 5000,
-        maximumAge: 1000
-    };
-    
-    userWatchId = navigator.geolocation.watchPosition(
-        function(position) {
-            const latlng = [position.coords.latitude, position.coords.longitude];
-            
-            console.log('Обновление местоположения:', latlng);
-            
-            if (userMarker) {
-                userMarker.setLatLng(latlng);
-                if (accuracyCircle) {
-                    accuracyCircle.setLatLng(latlng).setRadius(position.coords.accuracy);
-                }
-            }
-            
-            updateDistanceToCheckpoint(latlng);
-            
-            // Автоматическое приближение при первом получении
-            if (!window.userLocationInitialized) {
-                map.setView(latlng, 15);
-                window.userLocationInitialized = true;
-            }
-        },
-        function(error) {
-            console.error('Ошибка отслеживания:', error);
-            
-            // Не показываем уведомление для каждой ошибки
-            if (error.code === error.PERMISSION_DENIED) {
-                console.log('Отслеживание остановлено: доступ запрещен');
-                if (userWatchId) {
-                    navigator.geolocation.clearWatch(userWatchId);
-                    userWatchId = null;
-                    isTracking = false;
-                }
-            }
-        },
-        options
-    );
-    
-    isTracking = true;
-    console.log('Отслеживание начато, watchId:', userWatchId);
-}
-
-// Показать форму для ручного ввода местоположения
-function showManualLocationInput() {
-    const manualLocationHTML = `
-        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-4">
-            <p class="text-yellow-800 mb-3">Определите местоположение вручную:</p>
-            <div class="flex space-x-2">
-                <input type="text" id="manual-lat" placeholder="Широта" class="flex-1 p-2 border rounded">
-                <input type="text" id="manual-lng" placeholder="Долгота" class="flex-1 p-2 border rounded">
-                <button onclick="setManualLocation()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
-                    Установить
-                </button>
-            </div>
-            <p class="text-sm text-yellow-600 mt-2">Пример: 55.7558 37.6173 (Москва)</p>
-        </div>
-    `;
-    
-    // Добавляем под картой
-    const mapContainer = document.querySelector('#navigation-map').parentElement;
-    if (!document.getElementById('manual-location-input')) {
-        const div = document.createElement('div');
-        div.id = 'manual-location-input';
-        div.innerHTML = manualLocationHTML;
-        mapContainer.appendChild(div);
-    }
-}
-
-// Установить местоположение вручную
-function setManualLocation() {
-    const lat = parseFloat(document.getElementById('manual-lat').value);
-    const lng = parseFloat(document.getElementById('manual-lng').value);
-    
-    if (isNaN(lat) || isNaN(lng)) {
-        showNotification('Введите корректные координаты', 'error');
-        return;
-    }
-    
-    const latlng = [lat, lng];
-    
-    // Создаем или обновляем маркер
-    if (!userMarker) {
-        userMarker = L.marker(latlng, {
-            icon: L.divIcon({
-                html: '<div class="w-8 h-8 bg-blue-600 rounded-full border-2 border-white shadow-lg"></div>',
-                className: 'user-marker',
-                iconSize: [32, 32],
-                iconAnchor: [16, 32]
-            }),
-            zIndexOffset: 1000
-        }).addTo(map);
-    } else {
-        userMarker.setLatLng(latlng);
-    }
-    
-    map.setView(latlng, 15);
-    updateDistanceToCheckpoint(latlng);
-    
-    showNotification('Местоположение установлено вручную', 'success');
-    
-    // Скрываем форму
-    const manualInput = document.getElementById('manual-location-input');
-    if (manualInput) {
-        manualInput.remove();
-    }
-}
-
-// Начать отслеживание местоположения
-function startLocationTracking() {
-    if (userWatchId || !navigator.geolocation) {
-        return;
-    }
-    
-    userWatchId = navigator.geolocation.watchPosition(
-        function(position) {
-            const latlng = [position.coords.latitude, position.coords.longitude];
-            
-            if (userMarker) {
-                userMarker.setLatLng(latlng);
-                if (accuracyCircle) {
-                    accuracyCircle.setLatLng(latlng).setRadius(position.coords.accuracy);
-                }
-            }
-            
-            updateDistanceToCheckpoint(latlng);
-            
-            // Автоматическое приближение при первом получении
-            if (!window.userLocationInitialized) {
-                map.setView(latlng, 15);
-                window.userLocationInitialized = true;
-            }
-        },
-        function(error) {
-            console.error('Ошибка отслеживания:', error);
-        },
-        {
-            enableHighAccuracy: true,
-            timeout: 5000,
-            maximumAge: 1000
-        }
-    );
-    
-    isTracking = true;
-}
-
-// Загрузка маршрута и контрольных точек
-// Загрузка маршрута и контрольных точек
-function loadRouteAndCheckpoints() {
-    // Получаем данные о точках из PHP - более безопасный способ
-    const pointsData = JSON.parse(`{!! json_encode($route->points->map(function($point) {
-        return [
-            'id' => $point->id,
-            'title' => addslashes($point->title),
-            'description' => addslashes($point->description ?? ''),
-            'type' => $point->type,
-            'lat' => (float) $point->lat,
-            'lng' => (float) $point->lng,
-            'order' => (int) $point->order,
-            'type_icon' => $point->type_icon,
-            'type_label' => $point->type_label,
-            'type_color' => $point->type_color
+// Инициализация посещенных точек
+function initVisitedPoints() {
+    @if(isset($visitedCheckpoints) && $visitedCheckpoints->count() > 0)
+        visitedPoints = [
+            @foreach($visitedCheckpoints as $checkpoint)
+                {{ $checkpoint->point_id }},
+            @endforeach
         ];
-    })) !!}`);
+    @endif
+    debugLog('Посещенные точки', visitedPoints);
+}
+
+// Загрузка маршрута и точек - УПРОЩЕННАЯ ВЕРСИЯ
+function loadRouteAndCheckpoints() {
+    debugLog('Загрузка маршрута и точек');
     
-    const checkpointsData = JSON.parse(`{!! json_encode($checkpoints) !!}`);
-    
-    console.log('Загрузка точек:', pointsData.length, 'точки');
-    console.log('Контрольные точки:', checkpointsData.length);
-    
-    if (pointsData.length === 0) {
-        showNotification('У маршрута нет точек интереса. Добавьте точки в маршрут.', 'warning');
-        return;
+    try {
+        // Пробуем получить данные разными способами
+        let pointsData = [];
+        let checkpointsData = [];
+        
+        try {
+            // Способ 1: через PHP Blade
+            pointsData = JSON.parse('{!! json_encode($route->points ?? []) !!}');
+            checkpointsData = JSON.parse('{!! json_encode($checkpoints ?? []) !!}');
+        } catch (e) {
+            debugLog('Ошибка парсинга данных', e);
+            
+            // Способ 2: через прямую передачу
+            pointsData = window.routePoints || [];
+            checkpointsData = window.routeCheckpoints || [];
+            
+            // Способ 3: тестовые данные (если нет реальных)
+            if (pointsData.length === 0) {
+                pointsData = getTestPoints();
+            }
+        }
+        
+        debugLog('Данные точек', pointsData);
+        debugLog('Данные чекпоинтов', checkpointsData);
+        
+        if (!Array.isArray(pointsData) || pointsData.length === 0) {
+            console.warn('⚠️ Нет данных о точках маршрута');
+            showNotification('У маршрута нет точек интереса', 'warning');
+            
+            // Показываем тестовую карту
+            showTestMap();
+            return;
+        }
+        
+        // Сортируем точки по порядку
+        const sortedPoints = pointsData.sort((a, b) => (a.order || 0) - (b.order || 0));
+        
+        // Создаем полилинию маршрута
+        createRouteLine(sortedPoints);
+        
+        // Добавляем точки маршрута
+        addCheckpointMarkers(sortedPoints, checkpointsData);
+        
+        // Обновляем счетчик
+        updatePointsCounter();
+        
+    } catch (error) {
+        console.error('❌ Ошибка загрузки маршрута:', error);
+        showNotification('Ошибка загрузки маршрута', 'error');
+        
+        // Показываем тестовую карту как запасной вариант
+        showTestMap();
     }
+}
+
+// Создание линии маршрута
+function createRouteLine(points) {
+    debugLog('Создание линии маршрута из точек', points.length);
     
-    // Создаем полилинию маршрута
-    const routeCoordinates = pointsData
-        .sort((a, b) => a.order - b.order)
-        .map(point => [point.lat, point.lng]);
+    const routeCoordinates = points.map(point => {
+        // Проверяем структуру данных
+        if (point.lat && point.lng) {
+            return [parseFloat(point.lat), parseFloat(point.lng)];
+        } else if (point.latitude && point.longitude) {
+            return [parseFloat(point.latitude), parseFloat(point.longitude)];
+        } else if (Array.isArray(point) && point.length >= 2) {
+            return [parseFloat(point[0]), parseFloat(point[1])];
+        } else {
+            console.warn('Неизвестный формат точки:', point);
+            return null;
+        }
+    }).filter(coord => coord !== null);
+    
+    debugLog('Координаты маршрута', routeCoordinates);
     
     if (routeCoordinates.length > 1) {
-        routeLayer = L.polyline(routeCoordinates, {
-            color: '#f97316',
-            weight: 4,
-            opacity: 0.7,
-            smoothFactor: 1
-        }).addTo(map);
-        
-        // Устанавливаем обзор на весь маршрут
-        map.fitBounds(routeLayer.getBounds(), { padding: [50, 50] });
-    }
-    
-    // Добавляем точки маршрута
-    pointsData.forEach((point, index) => {
-        // Находим соответствующий checkpoint
-        const checkpoint = checkpointsData.find(cp => cp.point_id == point.id);
-        const status = checkpoint ? checkpoint.status : 'pending';
-        const isCurrent = checkpoint && checkpoint.id == currentCheckpointId;
-        
-        const icon = getCheckpointIcon(point.type, status, isCurrent);
-        
-        const marker = L.marker([point.lat, point.lng], { icon })
-            .addTo(map)
-            .bindPopup(`
-                <div class="p-2 min-w-64">
-                    <div class="flex items-start mb-2">
-                        <div class="w-10 h-10 rounded-lg flex items-center justify-center mr-3" 
-                             style="background-color: ${point.type_color}20; color: ${point.type_color};">
-                            <i class="${point.type_icon}"></i>
-                        </div>
-                        <div>
-                            <h4 class="font-bold text-gray-800">${point.title}</h4>
-                            <div class="text-sm text-gray-600 mt-1">${point.type_label}</div>
-                            <div class="text-xs text-gray-500 mt-1">Точка #${index + 1}</div>
-                        </div>
-                    </div>
-                    ${point.description ? `<p class="text-gray-700 text-sm mt-2">${point.description}</p>` : ''}
-                    <div class="mt-3 pt-3 border-t border-gray-200">
-                        <div class="flex justify-between text-xs">
-                            <span>Статус:</span>
-                            <span class="font-medium ${
-                                status === 'completed' ? 'text-green-600' :
-                                status === 'active' ? 'text-blue-600' :
-                                'text-gray-500'
-                            }">
-                                ${
-                                    status === 'completed' ? '✓ Пройдена' :
-                                    status === 'active' ? '→ Текущая' :
-                                    status === 'skipped' ? '⏭ Пропущена' :
-                                    '⏳ Ожидание'
-                                }
-                            </span>
-                        </div>
-                        ${checkpoint && checkpoint.arrived_at ? `
-                            <div class="flex justify-between text-xs mt-1">
-                                <span>Посещена:</span>
-                                <span>${new Date(checkpoint.arrived_at).toLocaleTimeString()}</span>
-                            </div>
-                        ` : ''}
-                    </div>
-                </div>
-            `);
-        
-        checkpointMarkers.push({
-            id: point.id,
-            marker: marker,
-            latlng: [point.lat, point.lng],
-            checkpointId: checkpoint ? checkpoint.id : null,
-            status: status
-        });
-    });
-    
-    // Фокус на текущую точку если есть
-    if (currentCheckpointId) {
-        const currentCheckpoint = checkpointsData.find(cp => cp.id == currentCheckpointId);
-        if (currentCheckpoint) {
-            const point = pointsData.find(p => p.id == currentCheckpoint.point_id);
-            if (point) {
-                map.setView([point.lat, point.lng], 15);
-                // Открываем popup текущей точки
-                const marker = checkpointMarkers.find(m => m.id == point.id);
-                if (marker) {
-                    marker.marker.openPopup();
-                }
+        try {
+            routeLayer = L.polyline(routeCoordinates, {
+                color: '#f97316',
+                weight: 6,
+                opacity: 0.8,
+                smoothFactor: 1,
+                lineCap: 'round'
+            }).addTo(map);
+            
+            // Устанавливаем обзор на весь маршрут
+            const bounds = routeLayer.getBounds();
+            if (bounds.isValid()) {
+                map.fitBounds(bounds, { padding: [50, 50] });
             }
+            
+            debugLog('Линия маршрута создана');
+            
+        } catch (error) {
+            console.error('❌ Ошибка создания линии маршрута:', error);
         }
+    } else {
+        console.warn('⚠️ Недостаточно точек для создания маршрута');
     }
-    
-    // Обновляем счетчик точек
-    updatePointsCounter();
 }
 
-// Получение иконки для точки
-function getCheckpointIcon(type, status, isCurrent = false) {
-    let iconColor, iconClass, iconBg;
+// Добавление маркеров точек
+function addCheckpointMarkers(points, checkpoints) {
+    debugLog('Добавление маркеров точек', points.length);
     
-    // Определяем цвет по типу точки
-    const typeColors = {
+    checkpointMarkers = [];
+    
+    points.forEach((point, index) => {
+        try {
+            // Извлекаем координаты
+            let lat, lng;
+            
+            if (point.lat && point.lng) {
+                lat = parseFloat(point.lat);
+                lng = parseFloat(point.lng);
+            } else if (point.latitude && point.longitude) {
+                lat = parseFloat(point.latitude);
+                lng = parseFloat(point.longitude);
+            } else if (Array.isArray(point) && point.length >= 2) {
+                lat = parseFloat(point[0]);
+                lng = parseFloat(point[1]);
+            } else {
+                console.warn('Неизвестный формат координат:', point);
+                return;
+            }
+            
+            if (isNaN(lat) || isNaN(lng)) {
+                console.warn('⚠️ Невалидные координаты:', point);
+                return;
+            }
+            
+            // Находим соответствующий checkpoint
+            const checkpoint = Array.isArray(checkpoints) 
+                ? checkpoints.find(cp => cp.point_id == point.id || cp.id == point.id)
+                : null;
+            
+            const status = checkpoint ? checkpoint.status : 'pending';
+            const isCurrent = checkpoint && checkpoint.id == currentCheckpointId;
+            const isVisited = visitedPoints.includes(point.id) || status === 'completed';
+            
+            // Создаем иконку
+            const icon = createCheckpointIcon(point, status, isCurrent, isVisited);
+            
+            // Создаем маркер
+            const marker = L.marker([lat, lng], { icon }).addTo(map);
+            
+            // Создаем всплывающее окно
+            const popupContent = createCheckpointPopup(point, checkpoint, index, status, isCurrent);
+            marker.bindPopup(popupContent);
+            
+            // Сохраняем маркер
+            checkpointMarkers.push({
+                id: point.id || index,
+                marker: marker,
+                latlng: [lat, lng],
+                checkpointId: checkpoint ? checkpoint.id : null,
+                status: status,
+                isVisited: isVisited
+            });
+            
+        } catch (error) {
+            console.error(`❌ Ошибка создания маркера для точки ${index}:`, error);
+        }
+    });
+    
+    debugLog('Создано маркеров', checkpointMarkers.length);
+}
+
+// Создание иконки для точки
+function createCheckpointIcon(point, status, isCurrent, isVisited) {
+    const colors = {
         'viewpoint': '#F59E0B',
         'cafe': '#EF4444', 
         'hotel': '#3B82F6',
@@ -1286,10 +896,10 @@ function getCheckpointIcon(type, status, isCurrent = false) {
         'photo_spot': '#8B5CF6',
         'nature': '#059669',
         'historical': '#DC2626',
-        'other': '#6B7280'
+        'default': '#6B7280'
     };
     
-    const typeIcons = {
+    const icons = {
         'viewpoint': 'fas fa-binoculars',
         'cafe': 'fas fa-coffee',
         'hotel': 'fas fa-bed',
@@ -1299,44 +909,40 @@ function getCheckpointIcon(type, status, isCurrent = false) {
         'photo_spot': 'fas fa-camera',
         'nature': 'fas fa-tree',
         'historical': 'fas fa-landmark',
-        'other': 'fas fa-map-marker-alt'
+        'default': 'fas fa-map-marker-alt'
     };
     
-    iconColor = typeColors[type] || '#6B7280';
-    iconClass = typeIcons[type] || 'fas fa-map-marker-alt';
+    const type = point.type || 'default';
+    let color = colors[type] || colors.default;
+    const iconClass = icons[type] || icons.default;
     
     // Меняем цвет по статусу
     if (isCurrent) {
-        iconColor = '#3B82F6'; // Синий для текущей
-        iconBg = '#EFF6FF';
-    } else if (status === 'completed') {
-        iconColor = '#10B981'; // Зеленый для пройденной
-        iconBg = '#ECFDF5';
+        color = '#3B82F6';
+    } else if (isVisited || status === 'completed') {
+        color = '#10B981';
     } else if (status === 'skipped') {
-        iconColor = '#9CA3AF'; // Серый для пропущенной
-        iconBg = '#F9FAFB';
-    } else {
-        iconBg = '#FFFFFF';
+        color = '#9CA3AF';
     }
     
-    // Размер иконки в зависимости от статуса
-    const size = isCurrent ? 48 : 40;
-    const borderWidth = isCurrent ? 4 : 3;
+    const size = isCurrent ? 48 : (isVisited ? 32 : 40);
+    const opacity = isVisited ? 0.5 : 1;
     
     return L.divIcon({
         html: `
             <div style="
                 width: ${size}px;
                 height: ${size}px;
-                background-color: ${iconBg};
+                background-color: white;
                 border-radius: 50%;
-                border: ${borderWidth}px solid ${iconColor};
+                border: 3px solid ${color};
                 box-shadow: 0 2px 8px rgba(0,0,0,0.2);
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                color: ${iconColor};
+                color: ${color};
                 font-size: ${isCurrent ? '18px' : '16px'};
+                opacity: ${opacity};
                 position: relative;
             ">
                 <i class="${iconClass}"></i>
@@ -1367,252 +973,497 @@ function getCheckpointIcon(type, status, isCurrent = false) {
     });
 }
 
-// Обновление расстояния до текущей контрольной точки
-function updateDistanceToCheckpoint(userLatLng) {
-    if (!currentCheckpointId) {
-        document.getElementById('live-distance').textContent = '—';
-        return;
+// Создание всплывающего окна
+function createCheckpointPopup(point, checkpoint, index, status, isCurrent) {
+    const title = point.title || `Точка ${index + 1}`;
+    const description = point.description || '';
+    const type = point.type || 'other';
+    
+    let statusText, statusColor;
+    switch(status) {
+        case 'completed':
+            statusText = '✓ Пройдена';
+            statusColor = 'text-green-600';
+            break;
+        case 'active':
+            statusText = '→ Текущая';
+            statusColor = 'text-blue-600';
+            break;
+        case 'skipped':
+            statusText = '⏭ Пропущена';
+            statusColor = 'text-gray-500';
+            break;
+        default:
+            statusText = '⏳ Ожидание';
+            statusColor = 'text-gray-500';
     }
     
-    // Находим текущий checkpoint
-    const currentCheckpoint = @json($currentCheckpoint);
-    if (!currentCheckpoint || !currentCheckpoint.point) {
-        document.getElementById('live-distance').textContent = '—';
-        return;
-    }
-    
-    const checkpointLatLng = [currentCheckpoint.point.lat, currentCheckpoint.point.lng];
-    const distance = calculateDistance(
-        userLatLng[0], userLatLng[1],
-        checkpointLatLng[0], checkpointLatLng[1]
-    );
-    
-    // Форматируем расстояние
-    let formattedDistance;
-    if (distance < 1000) {
-        formattedDistance = Math.round(distance) + ' м';
-    } else if (distance < 10000) {
-        formattedDistance = (distance / 1000).toFixed(1) + ' км';
-    } else {
-        formattedDistance = Math.round(distance / 1000) + ' км';
-    }
-    
-    document.getElementById('live-distance').textContent = formattedDistance;
-    
-    // Показываем/скрываем индикатор расстояния
-    const distanceIndicator = document.getElementById('distance-indicator');
-    const distanceValue = document.getElementById('distance-value');
-    
-    if (distanceIndicator && distanceValue) {
-        distanceValue.textContent = formattedDistance;
-        
-        // Показываем индикатор если расстояние больше 50 метров
-        if (distance > 50) {
-            distanceIndicator.classList.remove('hidden');
-            
-            // Меняем цвет в зависимости от расстояния
-            if (distance < 100) {
-                distanceIndicator.style.backgroundColor = 'rgba(34, 197, 94, 0.9)'; // Зеленый
-            } else if (distance < 500) {
-                distanceIndicator.style.backgroundColor = 'rgba(234, 179, 8, 0.9)'; // Желтый
-            } else {
-                distanceIndicator.style.backgroundColor = 'rgba(239, 68, 68, 0.9)'; // Красный
-            }
-        } else {
-            distanceIndicator.classList.add('hidden');
-        }
-    }
-}
-
-// Обновление счетчика точек
-function updatePointsCounter() {
-    const totalPoints = @json($route->points->count());
-    const completedPoints = @json($completedCheckpoints);
-    
-    document.getElementById('total-points-count').textContent = totalPoints;
-    document.getElementById('completed-points-count').textContent = completedPoints;
-}
-
-// Вычисление расстояния между двумя точками (в метрах)
-function calculateDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371e3; // Радиус Земли в метрах
-    const φ1 = lat1 * Math.PI / 180;
-    const φ2 = lat2 * Math.PI / 180;
-    const Δφ = (lat2 - lat1) * Math.PI / 180;
-    const Δλ = (lon2 - lon1) * Math.PI / 180;
-    
-    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-            Math.cos(φ1) * Math.cos(φ2) *
-            Math.sin(Δλ/2) * Math.sin(Δλ/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    
-    return R * c;
-}
-
-// Показать уведомление
-function showNotification(message, type = 'info') {
-    const notification = document.createElement('div');
-    notification.className = `fixed bottom-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg flex items-center animate-slide-up ${
-        type === 'success' ? 'bg-green-500 text-white' :
-        type === 'error' ? 'bg-red-500 text-white' :
-        type === 'warning' ? 'bg-yellow-500 text-white' :
-        'bg-blue-500 text-white'
-    }`;
-    
-    notification.innerHTML = `
-        <i class="fas ${
-            type === 'success' ? 'fa-check-circle' :
-            type === 'error' ? 'fa-exclamation-circle' :
-            type === 'warning' ? 'fa-exclamation-triangle' :
-            'fa-info-circle'
-        } mr-3"></i>
-        <span>${message}</span>
+    return `
+        <div class="p-3 min-w-64">
+            <div class="flex items-start mb-2">
+                <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center mr-3">
+                    <i class="fas fa-map-marker-alt text-blue-600"></i>
+                </div>
+                <div>
+                    <h4 class="font-bold text-gray-800">${title}</h4>
+                    <div class="text-sm text-gray-600 mt-1">Точка #${index + 1}</div>
+                </div>
+            </div>
+            ${description ? `<p class="text-gray-700 text-sm mt-2">${description}</p>` : ''}
+            <div class="mt-3 pt-3 border-t border-gray-200">
+                <div class="flex justify-between items-center text-xs">
+                    <span>Статус:</span>
+                    <span class="font-medium ${statusColor}">${statusText}</span>
+                </div>
+                ${checkpoint && checkpoint.arrived_at ? `
+                    <div class="flex justify-between text-xs mt-1">
+                        <span>Посещена:</span>
+                        <span>${new Date(checkpoint.arrived_at).toLocaleTimeString()}</span>
+                    </div>
+                ` : ''}
+                ${isCurrent ? `
+                    <div class="mt-2">
+                        <button onclick="focusCurrentCheckpoint()" 
+                                class="w-full bg-blue-500 hover:bg-blue-600 text-white text-xs py-1 rounded">
+                            Сфокусироваться
+                        </button>
+                    </div>
+                ` : ''}
+            </div>
+        </div>
     `;
+}
+
+// Тестовые данные
+function getTestPoints() {
+    debugLog('Используем тестовые данные');
     
-    document.body.appendChild(notification);
+    return [
+        {
+            id: 1,
+            title: 'Старт маршрута',
+            description: 'Начальная точка маршрута',
+            type: 'viewpoint',
+            lat: 55.7558,
+            lng: 37.6173,
+            order: 1
+        },
+        {
+            id: 2,
+            title: 'Красная площадь',
+            description: 'Главная площадь Москвы',
+            type: 'attraction',
+            lat: 55.7539,
+            lng: 37.6208,
+            order: 2
+        },
+        {
+            id: 3,
+            title: 'Кафе на Тверской',
+            description: 'Уютное кафе в центре',
+            type: 'cafe',
+            lat: 55.7600,
+            lng: 37.6100,
+            order: 3
+        }
+    ];
+}
+
+// Тестовая карта
+function showTestMap() {
+    debugLog('Показываем тестовую карту');
     
-    // Автоматическое скрытие
-    setTimeout(() => {
-        notification.style.opacity = '0';
-        notification.style.transition = 'opacity 0.3s';
-        setTimeout(() => notification.remove(), 300);
-    }, 5000);
+    try {
+        // Создаем тестовую линию
+        const testCoords = [
+            [55.7558, 37.6173],
+            [55.7539, 37.6208],
+            [55.7600, 37.6100]
+        ];
+        
+        routeLayer = L.polyline(testCoords, {
+            color: '#f97316',
+            weight: 6,
+            opacity: 0.8
+        }).addTo(map);
+        
+        // Добавляем тестовые маркеры
+        testCoords.forEach((coord, index) => {
+            const icon = L.divIcon({
+                html: `
+                    <div style="
+                        width: 40px;
+                        height: 40px;
+                        background-color: white;
+                        border-radius: 50%;
+                        border: 3px solid #3B82F6;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        color: #3B82F6;
+                    ">
+                        <i class="fas fa-map-marker-alt"></i>
+                    </div>
+                `,
+                className: 'test-marker',
+                iconSize: [40, 40],
+                iconAnchor: [20, 40]
+            });
+            
+            L.marker(coord, { icon })
+                .addTo(map)
+                .bindPopup(`Тестовая точка ${index + 1}`);
+        });
+        
+        // Устанавливаем обзор
+        map.fitBounds(routeLayer.getBounds(), { padding: [50, 50] });
+        
+        showNotification('Используются тестовые данные', 'warning');
+        
+    } catch (error) {
+        console.error('❌ Ошибка создания тестовой карты:', error);
+    }
+}
+
+// Настройка элементов управления
+function setupMapControls() {
+    debugLog('Настройка элементов управления');
     
-    // Закрытие по клику
-    notification.addEventListener('click', () => {
-        notification.style.opacity = '0';
-        setTimeout(() => notification.remove(), 300);
+    const controls = ['locate-me', 'zoom-in', 'zoom-out', 'fullscreen-btn', 'focus-current'];
+    
+    controls.forEach(controlId => {
+        const element = document.getElementById(controlId);
+        if (element) {
+            element.addEventListener('click', function() {
+                handleControlClick(controlId);
+            });
+        }
+    });
+    
+    // Обновление уровня масштаба
+    map.on('zoomend', function() {
+        const zoomLevel = document.getElementById('zoom-level');
+        if (zoomLevel) {
+            zoomLevel.textContent = map.getZoom();
+        }
     });
 }
 
-// Фокус на точку
-function focusCheckpoint(pointId) {
-    const marker = checkpointMarkers.find(m => m.id == pointId);
-    if (marker) {
-        map.setView(marker.latlng, 16);
-        marker.marker.openPopup();
+// Обработка кликов по контролам
+function handleControlClick(controlId) {
+    debugLog('Клик по контролу', controlId);
+    
+    switch(controlId) {
+        case 'locate-me':
+            getUserLocation(true);
+            break;
+            
+        case 'zoom-in':
+            map.zoomIn();
+            break;
+            
+        case 'zoom-out':
+            map.zoomOut();
+            break;
+            
+        case 'fullscreen-btn':
+            toggleFullscreen();
+            break;
+            
+        case 'focus-current':
+            focusCurrentCheckpoint();
+            break;
+    }
+}
+
+// Переключение полноэкранного режима
+function toggleFullscreen() {
+    const elem = document.getElementById('navigation-map');
+    if (!document.fullscreenElement) {
+        elem.requestFullscreen?.();
+    } else {
+        document.exitFullscreen?.();
     }
 }
 
 // Фокус на текущую точку
 function focusCurrentCheckpoint() {
     if (currentCheckpointId) {
-        const currentCheckpoint = @json($currentCheckpoint);
+        const currentCheckpoint = @json($currentCheckpoint ?? null);
         if (currentCheckpoint && currentCheckpoint.point) {
-            map.setView([currentCheckpoint.point.lat, currentCheckpoint.point.lng], 16);
+            const latlng = [currentCheckpoint.point.lat, currentCheckpoint.point.lng];
+            map.setView(latlng, 16);
             
-            const marker = checkpointMarkers.find(m => m.id == currentCheckpoint.point.id);
+            const marker = checkpointMarkers.find(m => 
+                m.id == currentCheckpoint.point.id || 
+                m.latlng[0] === latlng[0] && m.latlng[1] === latlng[1]
+            );
             if (marker) {
                 marker.marker.openPopup();
             }
         }
-    } else {
-        // Показываем весь маршрут
-        if (routeLayer) {
-            map.fitBounds(routeLayer.getBounds(), { padding: [50, 50] });
-        }
-    }
-}
-
-// Показать все точки
-function showAllCheckpoints() {
-    if (routeLayer) {
-        map.fitBounds(routeLayer.getBounds(), { padding: [50, 50] });
     } else if (checkpointMarkers.length > 0) {
-        const group = new L.featureGroup(checkpointMarkers.map(m => m.marker));
-        map.fitBounds(group.getBounds(), { padding: [50, 50] });
+        map.setView(checkpointMarkers[0].latlng, 16);
+        checkpointMarkers[0].marker.openPopup();
     }
 }
 
-// Инициализация при загрузке страницы
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM загружен, инициализируем карту...');
+// Получение местоположения
+function getUserLocation(force = false) {
+    debugLog('Запрос геолокации', { force, isTracking });
     
-    // Даем время на загрузку Leaflet
+    if (!navigator.geolocation) {
+        showNotification('Геолокация не поддерживается', 'error');
+        return;
+    }
+    
+    if (isTracking && !force) {
+        debugLog('Уже отслеживается');
+        return;
+    }
+    
+    const options = {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+    };
+    
+    navigator.geolocation.getCurrentPosition(
+        handleGeolocationSuccess,
+        handleGeolocationError,
+        options
+    );
+}
+
+// Успешное получение геолокации
+function handleGeolocationSuccess(position) {
+    debugLog('Геолокация успешна', position);
+    
+    const latlng = [position.coords.latitude, position.coords.longitude];
+    
+    if (!userMarker) {
+        userMarker = L.marker(latlng, {
+            icon: L.divIcon({
+                html: `
+                    <div style="
+                        width: 40px;
+                        height: 40px;
+                        background-color: #3B82F6;
+                        border-radius: 50%;
+                        border: 3px solid white;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        color: white;
+                    ">
+                        <i class="fas fa-user"></i>
+                    </div>
+                `,
+                className: 'user-marker',
+                iconSize: [40, 40],
+                iconAnchor: [20, 40]
+            })
+        }).addTo(map);
+    } else {
+        userMarker.setLatLng(latlng);
+    }
+    
+    map.setView(latlng, 15);
+    showNotification('Местоположение определено', 'success');
+    
+    // Начинаем отслеживание
+    if (!isTracking) {
+        startLocationTracking();
+    }
+}
+
+// Ошибка геолокации
+function handleGeolocationError(error) {
+    debugLog('Ошибка геолокации', error);
+    
+    let message = 'Не удалось определить местоположение';
+    switch(error.code) {
+        case error.PERMISSION_DENIED:
+            message = 'Доступ к геолокации запрещен';
+            break;
+        case error.POSITION_UNAVAILABLE:
+            message = 'Информация о местоположении недоступна';
+            break;
+        case error.TIMEOUT:
+            message = 'Время ожидания истекло';
+            break;
+    }
+    
+    showNotification(message, 'error');
+}
+
+// Начало отслеживания
+function startLocationTracking() {
+    if (userWatchId || !navigator.geolocation) return;
+    
+    debugLog('Начало отслеживания');
+    
+    const options = {
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 1000
+    };
+    
+    userWatchId = navigator.geolocation.watchPosition(
+        function(position) {
+            const latlng = [position.coords.latitude, position.coords.longitude];
+            
+            if (userMarker) {
+                userMarker.setLatLng(latlng);
+            }
+            
+            if (!window.userLocationInitialized) {
+                map.setView(latlng, 15);
+                window.userLocationInitialized = true;
+            }
+        },
+        function(error) {
+            debugLog('Ошибка отслеживания', error);
+        },
+        options
+    );
+    
+    isTracking = true;
+}
+
+// Обновление счетчика точек
+function updatePointsCounter() {
+    try {
+        const totalPoints = @json($route->points->count() ?? 0);
+        const completedPoints = @json($completedCheckpoints ?? 0);
+        
+        const totalElement = document.getElementById('total-points-count');
+        const completedElement = document.getElementById('completed-points-count');
+        
+        if (totalElement) totalElement.textContent = totalPoints;
+        if (completedElement) completedElement.textContent = completedPoints;
+        
+        debugLog('Счетчик точек', { total: totalPoints, completed: completedPoints });
+        
+    } catch (error) {
+        console.error('❌ Ошибка обновления счетчика:', error);
+    }
+}
+
+// Показать уведомление
+function showNotification(message, type = 'info') {
+    debugLog('Показ уведомления', { message, type });
+    
+    // Создаем простейшее уведомление
+    alert(`${type.toUpperCase()}: ${message}`);
+}
+
+// Инициализация при загрузке
+document.addEventListener('DOMContentLoaded', function() {
+    debugLog('DOM загружен');
+    
+    // Проверяем наличие Leaflet
+    if (typeof L === 'undefined') {
+        console.error('❌ Leaflet не загружен!');
+        showNotification('Библиотека карт не загружена', 'error');
+        return;
+    }
+    
+    // Инициализируем карту с небольшой задержкой
     setTimeout(() => {
         try {
             initMap();
         } catch (error) {
-            console.error('Ошибка инициализации карты:', error);
-            showNotification('Ошибка загрузки карты', 'error');
+            console.error('❌ Критическая ошибка:', error);
+            showNotification('Критическая ошибка: ' + error.message, 'error');
         }
-    }, 500);
+    }, 300);
     
-    // Обработка прибытия на точку
-    document.getElementById('arrive-btn')?.addEventListener('click', function() {
-        if (!currentCheckpointId) return;
-        
-        if (confirm('Вы прибыли на текущую точку маршрута?')) {
-            fetch(`/navigation/checkpoint/${currentCheckpointId}/arrive`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showNotification('Точка успешно отмечена как пройденная!', 'success');
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 1500);
-                } else {
-                    showNotification(data.message || 'Ошибка', 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showNotification('Произошла ошибка', 'error');
-            });
-        }
-    });
-    
-    // Обработка пропуска точки
-    window.skipCheckpoint = function(checkpointId) {
-        if (confirm('Пропустить эту точку? Прогресс квестов может быть затронут.')) {
-            fetch(`/navigation/checkpoint/${checkpointId}/skip`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showNotification('Точка пропущена', 'warning');
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 1500);
-                } else {
-                    showNotification(data.message || 'Ошибка', 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showNotification('Произошла ошибка', 'error');
-            });
-        }
-    };
-    
-    // Обработка клавиш
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-            // Закрытие попапов
-            map.closePopup();
-        }
-    });
-    
-    // Очистка при закрытии страницы
-    window.addEventListener('beforeunload', function() {
-        if (userWatchId) {
-            navigator.geolocation.clearWatch(userWatchId);
-        }
-    });
+    // Обработка кнопки прибытия
+    const arriveBtn = document.getElementById('arrive-btn');
+    if (arriveBtn) {
+        arriveBtn.addEventListener('click', function() {
+            if (currentCheckpointId) {
+                showNotification('Точка отмечена как посещенная', 'success');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            }
+        });
+    }
 });
 </script>
+
+<style>
+#navigation-map {
+    width: 100%;
+    height: 600px;
+    border-radius: 0.5rem;
+    z-index: 1;
+}
+
+.map-controls {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.map-control-btn {
+    width: 44px;
+    height: 44px;
+    background: white;
+    border-radius: 8px;
+    border: 2px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.map-control-btn:hover {
+    background: #f3f4f6;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.map-control-btn i {
+    color: #4b5563;
+    font-size: 18px;
+}
+
+.user-marker {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.checkpoint-icon {
+    transition: opacity 0.3s ease;
+}
+
+.leaflet-popup-content {
+    margin: 12px !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.leaflet-popup-content-wrapper {
+    border-radius: 8px !important;
+    box-shadow: 0 3px 14px rgba(0,0,0,0.2) !important;
+}
+
+.leaflet-control-attribution {
+    font-size: 11px !important;
+}
+</style>
 @endpush
-@endsection

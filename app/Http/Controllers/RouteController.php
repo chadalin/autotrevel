@@ -542,4 +542,40 @@ class RouteController extends Controller
             default => 'bg-gray-100 text-gray-800'
         };
     }
+
+    // При прибытии на точку
+public function arriveAtCheckpoint($checkpointId)
+{
+    $checkpoint = Checkpoint::findOrFail($checkpointId);
+    
+    // Отмечаем точку как посещенную
+    $checkpoint->update([
+        'status' => 'completed',
+        'arrived_at' => now()
+    ]);
+    
+    // Проверяем квесты
+    $quests = Quest::whereHas('points', function($q) use ($checkpoint) {
+        $q->where('point_id', $checkpoint->point_id);
+    })->get();
+    
+    foreach ($quests as $quest) {
+        // Обновляем прогресс квеста
+        $userQuest = UserQuest::where('user_id', auth()->id())
+            ->where('quest_id', $quest->id)
+            ->first();
+            
+        if ($userQuest) {
+            $progress = $userQuest->progress ?: [];
+            $progress['completed_points'][] = $checkpoint->point_id;
+            $userQuest->progress = $progress;
+            $userQuest->save();
+            
+            // Проверяем завершение квеста
+            $this->checkQuestCompletion($userQuest);
+        }
+    }
+    
+    return response()->json(['success' => true]);
+}
 }

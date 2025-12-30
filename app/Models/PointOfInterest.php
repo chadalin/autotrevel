@@ -81,4 +81,22 @@ class PointOfInterest extends Model
 
         return null;
     }
+
+    public function getPhotosArrayAttribute()
+    {
+        if (empty($this->photos)) {
+            return [];
+        }
+        
+        if (is_array($this->photos)) {
+            return $this->photos;
+        }
+        
+        if (is_string($this->photos)) {
+            $decoded = json_decode($this->photos, true);
+            return is_array($decoded) ? $decoded : [];
+        }
+        
+        return [];
+    }
 }

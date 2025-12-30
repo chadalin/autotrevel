@@ -858,201 +858,309 @@ let routeMap = null;
 
 // Основная функция инициализации карты
 function initializeMap() {
-    console.log('Инициализация карты...');
+    console.log('🚀 Инициализация карты маршрута...');
     
     // Скрываем сообщение об ошибке если оно было показано
-    document.querySelector('.map-error')?.classList.add('hidden');
+    const errorElement = document.querySelector('.map-error');
+    if (errorElement) {
+        errorElement.classList.add('hidden');
+    }
     
     // Проверяем наличие Leaflet
     if (typeof L === 'undefined') {
-        console.error('Leaflet не загружен!');
-        showMapError();
+        console.error('❌ Leaflet не загружен!');
+        showMapError('Библиотека карт не загружена');
         return;
     }
     
     const mapElement = document.getElementById('route-map');
     if (!mapElement) {
-        console.error('Элемент карты не найден');
-        return;
-    }
-    
-    // Проверяем координаты
-    const startLat = {{ $route->start_lat ?? 55.7558 }};
-    const startLng = {{ $route->start_lng ?? 37.6173 }};
-    
-    if (isNaN(startLat) || isNaN(startLng)) {
-        console.error('Невалидные координаты маршрута');
-        showMapError();
+        console.error('❌ Элемент карты не найден');
+        showMapError('Элемент карты не найден');
         return;
     }
     
     try {
-        // Удаляем старую карту если она существует
+        // 1. ПАРСИМ КООРДИНАТЫ ИЗ JSON
+        // В базе данные хранятся как JSON строки, нужно их распарсить
+        let startCoords, endCoords, pathCoords;
+        
+        try {
+            // Стартовые координаты
+            startCoords = JSON.parse('{!! addslashes($route->start_coordinates) !!}');
+            if (!Array.isArray(startCoords) || startCoords.length < 2) {
+                startCoords = [55.7558, 37.6173]; // Москва по умолчанию
+            }
+        } catch (e) {
+            console.warn('⚠️ Ошибка парсинга start_coordinates:', e);
+            startCoords = [55.7558, 37.6173];
+        }
+        
+        try {
+            // Конечные координаты
+            endCoords = JSON.parse('{!! addslashes($route->end_coordinates) !!}');
+        } catch (e) {
+            console.warn('⚠️ Ошибка парсинга end_coordinates:', e);
+            endCoords = null;
+        }
+        
+        try {
+            // Координаты пути
+            pathCoords = JSON.parse('{!! addslashes($route->path_coordinates) !!}');
+            if (!Array.isArray(pathCoords)) {
+                pathCoords = [];
+            }
+        } catch (e) {
+            console.warn('⚠️ Ошибка парсинга path_coordinates:', e);
+            pathCoords = [];
+        }
+        
+        console.log('📍 Координаты:', {
+            start: startCoords,
+            end: endCoords,
+            path: pathCoords
+        });
+        
+        const startLat = parseFloat(startCoords[0]);
+        const startLng = parseFloat(startCoords[1]);
+        
+        if (isNaN(startLat) || isNaN(startLng)) {
+            console.error('❌ Невалидные координаты маршрута');
+            showMapError('Неверные координаты маршрута');
+            return;
+        }
+        
+        // 2. УДАЛЯЕМ СТАРУЮ КАРТУ ЕСЛИ ОНА СУЩЕСТВУЕТ
         if (routeMap) {
             routeMap.remove();
             routeMap = null;
         }
         
-        // Создаем новую карту
+        // 3. СОЗДАЕМ НОВУЮ КАРТУ
         routeMap = L.map('route-map').setView([startLat, startLng], 10);
+        console.log('🗺️ Карта создана');
         
-        // Добавляем базовый слой OpenStreetMap
+        // 4. ДОБАВЛЯЕМ БАЗОВЫЙ СЛОЙ OPENSTREETMAP
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
             maxZoom: 19,
             minZoom: 3
         }).addTo(routeMap);
+        console.log('🖼️ Тайлы добавлены');
         
-        // Добавляем маркер старта
+        // 5. ДОБАВЛЯЕМ МАРКЕР СТАРТА
         const startMarker = L.marker([startLat, startLng]).addTo(routeMap);
         startMarker.bindPopup(`
             <div class="p-2">
-                <div class="font-bold text-gray-800 mb-1">Старт маршрута</div>
+                <div class="font-bold text-gray-800 mb-1">📍 Старт маршрута</div>
                 <div class="text-sm text-gray-600">{{ $route->title }}</div>
             </div>
         `);
+        console.log('📍 Маркер старта добавлен');
         
-        // Добавляем маркер финиша если есть
-        @if(!is_null($route->end_lat) && !is_null($route->end_lng))
-            const endLat = {{ $route->end_lat }};
-            const endLng = {{ $route->end_lng }};
+        // 6. ДОБАВЛЯЕМ МАРКЕР ФИНИША ЕСЛИ ЕСТЬ
+        if (endCoords && Array.isArray(endCoords) && endCoords.length >= 2) {
+            const endLat = parseFloat(endCoords[0]);
+            const endLng = parseFloat(endCoords[1]);
             
             if (!isNaN(endLat) && !isNaN(endLng)) {
                 const endMarker = L.marker([endLat, endLng]).addTo(routeMap);
                 endMarker.bindPopup(`
                     <div class="p-2">
-                        <div class="font-bold text-gray-800 mb-1">Финиш маршрута</div>
+                        <div class="font-bold text-gray-800 mb-1">🏁 Финиш маршрута</div>
                         <div class="text-sm text-gray-600">{{ $route->title }}</div>
                     </div>
                 `);
+                console.log('🏁 Маркер финиша добавлен');
             }
-        @endif
+        }
         
-        // Добавляем маршрут если есть координаты
-        @if($route->coordinates && is_array($route->coordinates) && count($route->coordinates) > 0)
+        // 7. ДОБАВЛЯЕМ МАРШРУТ ЕСЛИ ЕСТЬ КООРДИНАТЫ ПУТИ
+        if (pathCoords && pathCoords.length > 0) {
+            console.log('🛣️ Координаты пути:', pathCoords.length, 'точек');
+            
             try {
-                const coordinates = [
-                    @foreach($route->coordinates as $coord)
-                    [{{ $coord['lat'] }}, {{ $coord['lng'] }}],
-                    @endforeach
-                ];
+                // Фильтруем валидные координаты
+                const validCoords = pathCoords.filter(coord => 
+                    Array.isArray(coord) && 
+                    coord.length >= 2 && 
+                    !isNaN(parseFloat(coord[0])) && 
+                    !isNaN(parseFloat(coord[1]))
+                );
                 
-                // Создаем линию маршрута
-                const routeLine = L.polyline(coordinates, {
-                    color: '#f97316',
-                    weight: 4,
-                    opacity: 0.8,
-                    smoothFactor: 1
-                }).addTo(routeMap);
-                
-                // Фокусируем карту на маршруте
-                if (coordinates.length > 1) {
-                    routeMap.fitBounds(routeLine.getBounds());
-                }
-                
-            } catch (e) {
-                console.warn('Не удалось добавить маршрут:', e);
-            }
-        @endif
-        
-        // Добавляем точки интереса
-        @foreach($route->points as $point)
-            @if(!is_null($point->lat) && !is_null($point->lng))
-                try {
-                    // Определяем цвет и иконку для типа точки
-                    let pointColor, pointIcon;
-                    
-                    switch('{{ $point->type }}') {
-                        case 'viewpoint':
-                            pointColor = '#F59E0B';
-                            pointIcon = 'fas fa-binoculars';
-                            break;
-                        case 'cafe':
-                            pointColor = '#EF4444';
-                            pointIcon = 'fas fa-utensils';
-                            break;
-                        case 'hotel':
-                            pointColor = '#3B82F6';
-                            pointIcon = 'fas fa-bed';
-                            break;
-                        case 'attraction':
-                            pointColor = '#6366F1';
-                            pointIcon = 'fas fa-landmark';
-                            break;
-                        default:
-                            pointColor = '#6B7280';
-                            pointIcon = 'fas fa-map-marker-alt';
-                    }
-                    
-                    // Создаем кастомную иконку
-                    const customIcon = L.divIcon({
-                        html: `
-                            <div style="
-                                width: 36px;
-                                height: 36px;
-                                background-color: ${pointColor};
-                                border-radius: 50%;
-                                border: 3px solid white;
-                                box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-                                display: flex;
-                                align-items: center;
-                                justify-content: center;
-                                color: white;
-                                font-size: 14px;
-                            ">
-                                <i class="${pointIcon}"></i>
-                            </div>
-                        `,
-                        className: 'custom-marker',
-                        iconSize: [36, 36],
-                        iconAnchor: [18, 36]
-                    });
-                    
-                    const pointMarker = L.marker([{{ $point->lat }}, {{ $point->lng }}], {
-                        icon: customIcon
+                if (validCoords.length > 1) {
+                    // Создаем линию маршрута
+                    const routeLine = L.polyline(validCoords, {
+                        color: '#f97316',
+                        weight: 4,
+                        opacity: 0.8,
+                        smoothFactor: 1,
+                        lineCap: 'round'
                     }).addTo(routeMap);
                     
-                    // Всплывающее окно для точки
-                    pointMarker.bindPopup(`
-                        <div class="p-3 max-w-xs">
-                            <div class="flex items-start mb-2">
-                                <div class="w-10 h-10 rounded-lg flex items-center justify-center mr-3" 
-                                     style="background-color: ${pointColor}20; color: ${pointColor};">
-                                    <i class="${pointIcon}"></i>
-                                </div>
-                                <div>
-                                    <div class="font-bold text-gray-800">{{ $point->title }}</div>
-                                    <div class="text-sm text-gray-600 mt-1">{{ $point->type_label }}</div>
-                                </div>
-                            </div>
-                            @if($point->description)
-                                <div class="text-gray-700 text-sm mt-2">{{ $point->description }}</div>
-                            @endif
-                        </div>
-                    `);
+                    console.log('🛣️ Линия маршрута добавлена:', validCoords.length, 'точек');
                     
-                } catch (pointError) {
-                    console.warn('Ошибка при добавлении точки:', pointError);
+                    // Фокусируем карту на маршруте
+                    routeMap.fitBounds(routeLine.getBounds());
+                    console.log('🎯 Карта сфокусирована на маршруте');
+                } else {
+                    console.warn('⚠️ Недостаточно валидных координат для отрисовки маршрута');
                 }
-            @endif
-        @endforeach
+            } catch (e) {
+                console.warn('⚠️ Не удалось добавить маршрут:', e);
+            }
+        } else {
+            console.warn('⚠️ Координаты пути отсутствуют или пусты');
+        }
         
-        // Добавляем элементы управления
+        // 8. ДОБАВЛЯЕМ ТОЧКИ ИНТЕРЕСА
+        const pointsData = @json($route->points);
+        console.log('📍 Точки интереса:', pointsData);
+        
+        if (pointsData && pointsData.length > 0) {
+            let pointsAdded = 0;
+            
+            pointsData.forEach((point, index) => {
+                try {
+                    if (point.lat && point.lng) {
+                        const lat = parseFloat(point.lat);
+                        const lng = parseFloat(point.lng);
+                        
+                        if (!isNaN(lat) && !isNaN(lng)) {
+                            // Определяем цвет и иконку для типа точки
+                            let pointColor, pointIcon;
+                            
+                            switch(point.type) {
+                                case 'viewpoint':
+                                    pointColor = '#F59E0B';
+                                    pointIcon = 'fas fa-binoculars';
+                                    break;
+                                case 'cafe':
+                                    pointColor = '#EF4444';
+                                    pointIcon = 'fas fa-utensils';
+                                    break;
+                                case 'hotel':
+                                    pointColor = '#3B82F6';
+                                    pointIcon = 'fas fa-bed';
+                                    break;
+                                case 'attraction':
+                                    pointColor = '#6366F1';
+                                    pointIcon = 'fas fa-landmark';
+                                    break;
+                                case 'gas_station':
+                                    pointColor = '#10B981';
+                                    pointIcon = 'fas fa-gas-pump';
+                                    break;
+                                case 'camping':
+                                    pointColor = '#8B5CF6';
+                                    pointIcon = 'fas fa-campground';
+                                    break;
+                                case 'photo_spot':
+                                    pointColor = '#EC4899';
+                                    pointIcon = 'fas fa-camera';
+                                    break;
+                                case 'nature':
+                                    pointColor = '#22C55E';
+                                    pointIcon = 'fas fa-tree';
+                                    break;
+                                case 'historical':
+                                    pointColor = '#A855F7';
+                                    pointIcon = 'fas fa-monument';
+                                    break;
+                                default:
+                                    pointColor = '#6B7280';
+                                    pointIcon = 'fas fa-map-marker-alt';
+                            }
+                            
+                            // Создаем кастомную иконку
+                            const customIcon = L.divIcon({
+                                html: `
+                                    <div style="
+                                        width: 36px;
+                                        height: 36px;
+                                        background-color: ${pointColor};
+                                        border-radius: 50%;
+                                        border: 3px solid white;
+                                        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+                                        display: flex;
+                                        align-items: center;
+                                        justify-content: center;
+                                        color: white;
+                                        font-size: 14px;
+                                    ">
+                                        <i class="${pointIcon}"></i>
+                                    </div>
+                                `,
+                                className: 'custom-marker',
+                                iconSize: [36, 36],
+                                iconAnchor: [18, 36]
+                            });
+                            
+                            // Создаем маркер
+                            const pointMarker = L.marker([lat, lng], {
+                                icon: customIcon
+                            }).addTo(routeMap);
+                            
+                            // Создаем содержимое для всплывающего окна
+                            let popupContent = `
+                                <div class="p-3 max-w-xs">
+                                    <div class="flex items-start mb-2">
+                                        <div class="w-10 h-10 rounded-lg flex items-center justify-center mr-3" 
+                                             style="background-color: ${pointColor}20; color: ${pointColor};">
+                                            <i class="${pointIcon}"></i>
+                                        </div>
+                                        <div>
+                                            <div class="font-bold text-gray-800">${point.title || 'Точка интереса'}</div>
+                                            <div class="text-sm text-gray-600 mt-1">${getTypeLabel(point.type)}</div>
+                                        </div>
+                                    </div>`;
+                            
+                            if (point.description) {
+                                popupContent += `<div class="text-gray-700 text-sm mt-2">${point.description}</div>`;
+                            }
+                            
+                            popupContent += `</div>`;
+                            
+                            // Добавляем всплывающее окно
+                            pointMarker.bindPopup(popupContent);
+                            
+                            pointsAdded++;
+                        }
+                    }
+                } catch (pointError) {
+                    console.warn(`⚠️ Ошибка при добавлении точки ${index}:`, pointError);
+                }
+            });
+            
+            console.log(`📍 Добавлено точек интереса: ${pointsAdded} из ${pointsData.length}`);
+        }
+        
+        // 9. ДОБАВЛЯЕМ ЭЛЕМЕНТЫ УПРАВЛЕНИЯ
         L.control.zoom({
             position: 'topright'
         }).addTo(routeMap);
         
-        // Обновляем размер карты после загрузки
+        L.control.scale({
+            position: 'bottomleft',
+            imperial: false
+        }).addTo(routeMap);
+        
+        // 10. СКРЫВАЕМ ИНДИКАТОР ЗАГРУЗКИ
         setTimeout(() => {
+            const loadingElement = document.querySelector('.map-loading');
+            if (loadingElement) {
+                loadingElement.style.display = 'none';
+                console.log('✅ Индикатор загрузки скрыт');
+            }
+            
+            // Обновляем размер карты
             if (routeMap) {
                 routeMap.invalidateSize();
-                // Скрываем индикатор загрузки
-                document.querySelector('.map-loading')?.remove();
-                console.log('Карта успешно загружена');
+                console.log('📏 Размер карты обновлен');
             }
         }, 100);
         
-        // Обработчик изменения размера окна
+        // 11. ОБРАБОТЧИК ИЗМЕНЕНИЯ РАЗМЕРА ОКНА
         let resizeTimer;
         window.addEventListener('resize', () => {
             clearTimeout(resizeTimer);
@@ -1063,36 +1171,78 @@ function initializeMap() {
             }, 250);
         });
         
-        // Сохраняем карту в глобальной переменной для отладки
+        // 12. СОХРАНЯЕМ КАРТУ В ГЛОБАЛЬНОЙ ПЕРЕМЕННОЙ
         window.routeMap = routeMap;
         
+        console.log('✅ Карта успешно инициализирована!');
+        
     } catch (error) {
-        console.error('Критическая ошибка при создании карты:', error);
-        showMapError();
+        console.error('❌ Критическая ошибка при создании карты:', error, error.stack);
+        showMapError('Ошибка создания карты: ' + error.message);
     }
 }
 
+// Вспомогательная функция для получения названия типа точки
+function getTypeLabel(type) {
+    const labels = {
+        'viewpoint': 'Смотровая площадка',
+        'cafe': 'Кафе',
+        'hotel': 'Отель',
+        'attraction': 'Достопримечательность',
+        'gas_station': 'Заправка',
+        'camping': 'Кемпинг',
+        'photo_spot': 'Фото-спот',
+        'nature': 'Природа',
+        'historical': 'Историческое место',
+        'other': 'Точка интереса'
+    };
+    return labels[type] || 'Точка интереса';
+}
+
 // Функция показа ошибки карты
-function showMapError() {
+function showMapError(message = 'Не удалось загрузить карту') {
+    console.error('❌ Показываем ошибку карты:', message);
+    
     const loadingElement = document.querySelector('.map-loading');
     const errorElement = document.querySelector('.map-error');
     
     if (loadingElement) {
-        loadingElement.remove();
+        loadingElement.style.display = 'none';
     }
     
     if (errorElement) {
+        // Обновляем текст ошибки
+        const errorText = errorElement.querySelector('h3');
+        if (errorText) {
+            errorText.textContent = message;
+        }
+        
         errorElement.classList.remove('hidden');
+        errorElement.style.display = 'flex';
     }
 }
 
-// Инициализация при загрузке страницы
-document.addEventListener('DOMContentLoaded', () => {
-    // Даем время на загрузку Leaflet и других ресурсов
-    setTimeout(initializeMap, 500);
-});
+// Функция перезагрузки карты
+function reloadMap() {
+    console.log('🔄 Перезагрузка карты...');
+    const loadingElement = document.querySelector('.map-loading');
+    const errorElement = document.querySelector('.map-error');
+    
+    if (loadingElement) {
+        loadingElement.style.display = 'flex';
+    }
+    
+    if (errorElement) {
+        errorElement.classList.add('hidden');
+    }
+    
+    // Даем время на скрытие ошибки
+    setTimeout(initializeMap, 300);
+}
 
-// Другие функции для страницы
+// =============== ОСТАЛЬНЫЕ ФУНКЦИИ СТРАНИЦЫ ===============
+
+// Открытие модального окна с изображением
 function openImageModal(src) {
     const modal = document.getElementById('image-modal');
     const modalImage = document.getElementById('modal-image');
@@ -1104,13 +1254,19 @@ function openImageModal(src) {
     }
 }
 
-// Закрытие модального окна
-document.addEventListener('DOMContentLoaded', () => {
+// Инициализация при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('📄 DOM загружен, инициализируем карту...');
+    
+    // Инициализируем карту с задержкой для загрузки Leaflet
+    setTimeout(initializeMap, 800);
+    
+    // =============== НАСТРОЙКА МОДАЛЬНОГО ОКНА ===============
     const modal = document.getElementById('image-modal');
     const closeBtn = document.getElementById('close-modal');
     
     if (closeBtn) {
-        closeBtn.addEventListener('click', () => {
+        closeBtn.addEventListener('click', function() {
             if (modal) {
                 modal.classList.add('hidden');
                 document.body.style.overflow = '';
@@ -1119,7 +1275,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     if (modal) {
-        modal.addEventListener('click', (e) => {
+        modal.addEventListener('click', function(e) {
             if (e.target === modal) {
                 modal.classList.add('hidden');
                 document.body.style.overflow = '';
@@ -1128,23 +1284,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // Закрытие по Escape
-    document.addEventListener('keydown', (e) => {
+    document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape' && modal && !modal.classList.contains('hidden')) {
             modal.classList.add('hidden');
             document.body.style.overflow = '';
         }
     });
     
-    // Кнопка "Сохранить в избранное"
+    // =============== КНОПКА "СОХРАНИТЬ В ИЗБРАННОЕ" ===============
     const saveBtn = document.getElementById('save-route-btn');
     if (saveBtn) {
-        saveBtn.addEventListener('click', async () => {
+        saveBtn.addEventListener('click', async function() {
             try {
+                console.log('💾 Сохранение маршрута...');
                 const response = await fetch('{{ route("routes.save", $route) }}', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'Accept': 'application/json'
                     }
                 });
                 
@@ -1154,66 +1312,71 @@ document.addEventListener('DOMContentLoaded', () => {
                     const favoritesCount = document.getElementById('favorites-count');
                     
                     if (data.saved) {
+                        // Маршрут сохранен
                         saveBtn.classList.remove('bg-gray-100', 'text-gray-800');
                         saveBtn.classList.add('bg-red-100', 'text-red-800');
                         saveBtn.querySelector('i').className = 'fas fa-heart mr-2';
-                        saveText.textContent = 'В избранном';
+                        if (saveText) saveText.textContent = 'В избранном';
+                        console.log('❤️ Маршрут добавлен в избранное');
                     } else {
+                        // Маршрут удален из избранного
                         saveBtn.classList.remove('bg-red-100', 'text-red-800');
                         saveBtn.classList.add('bg-gray-100', 'text-gray-800');
                         saveBtn.querySelector('i').className = 'far fa-heart mr-2';
-                        saveText.textContent = 'В избранное';
+                        if (saveText) saveText.textContent = 'В избранное';
+                        console.log('💔 Маршрут удален из избранного');
                     }
                     
                     if (favoritesCount) {
-                        favoritesCount.textContent = data.favorites_count;
+                        favoritesCount.textContent = data.favorites_count || data.count || 0;
                     }
+                } else {
+                    console.error('❌ Ошибка при сохранении:', response.status);
+                    alert('Ошибка при сохранении маршрута');
                 }
             } catch (error) {
-                console.error('Ошибка:', error);
-                alert('Ошибка при сохранении маршрута');
+                console.error('❌ Ошибка:', error);
+                alert('Ошибка при сохранении маршрута. Проверьте подключение.');
             }
         });
     }
     
-    // Кнопка "Поделиться"
+    // =============== КНОПКА "ПОДЕЛИТЬСЯ" ===============
     const shareBtn = document.getElementById('share-btn');
     if (shareBtn) {
-        shareBtn.addEventListener('click', () => {
+        shareBtn.addEventListener('click', function() {
+            const shareUrl = window.location.href;
+            const shareTitle = '{{ $route->title }}';
+            const shareText = 'Посмотрите этот маршрут на AutoRuta!';
+            
             if (navigator.share) {
+                // Используем Web Share API если доступен
                 navigator.share({
-                    title: '{{ $route->title }}',
-                    text: 'Посмотрите этот маршрут на AutoRuta!',
-                    url: window.location.href
+                    title: shareTitle,
+                    text: shareText,
+                    url: shareUrl
+                }).then(() => {
+                    console.log('✅ Успешно поделились');
+                }).catch(err => {
+                    console.warn('⚠️ Ошибка sharing:', err);
+                    copyToClipboard(shareUrl);
                 });
             } else {
-                navigator.clipboard.writeText(window.location.href).then(() => {
-                    alert('Ссылка скопирована в буфер обмена!');
-                });
+                // Или копируем в буфер обмена
+                copyToClipboard(shareUrl);
             }
         });
     }
     
-    // Копирование ссылки
+    // =============== КНОПКА "КОПИРОВАТЬ ССЫЛКУ" ===============
     const copyLinkBtn = document.getElementById('copy-link');
     if (copyLinkBtn) {
-        copyLinkBtn.addEventListener('click', () => {
-            navigator.clipboard.writeText(window.location.href).then(() => {
-                const originalText = copyLinkBtn.querySelector('span');
-                const originalTextContent = originalText.textContent;
-                
-                originalText.textContent = 'Скопировано!';
-                originalText.classList.add('text-green-600');
-                
-                setTimeout(() => {
-                    originalText.textContent = originalTextContent;
-                    originalText.classList.remove('text-green-600');
-                }, 2000);
-            });
+        copyLinkBtn.addEventListener('click', function() {
+            copyToClipboard(window.location.href);
         });
     }
     
-    // Рейтинг звездочек
+    // =============== РЕЙТИНГ ЗВЕЗДОЧЕК ===============
     document.querySelectorAll('.rating-star').forEach(star => {
         star.addEventListener('click', function() {
             const input = this.previousElementSibling;
@@ -1227,14 +1390,73 @@ document.addEventListener('DOMContentLoaded', () => {
                 stars.forEach((s, index) => {
                     const icon = s.querySelector('i');
                     if (index < rating) {
-                        icon.className = icon.className.replace('far', 'fas');
+                        icon.className = 'fas fa-star';
                     } else {
-                        icon.className = icon.className.replace('fas', 'far');
+                        icon.className = 'far fa-star';
                     }
                 });
             }
         });
     });
+    
+    // =============== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===============
+    
+    // Функция копирования в буфер обмена
+    function copyToClipboard(text) {
+        navigator.clipboard.writeText(text).then(() => {
+            showNotification('Ссылка скопирована в буфер обмена!');
+            console.log('📋 Ссылка скопирована');
+        }).catch(err => {
+            console.error('❌ Ошибка копирования:', err);
+            showNotification('Не удалось скопировать ссылку', 'error');
+        });
+    }
+    
+    // Функция показа уведомления
+    function showNotification(message, type = 'success') {
+        // Создаем элемент уведомления
+        const notification = document.createElement('div');
+        notification.className = `fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg font-medium transition-all duration-300 transform translate-x-full ${
+            type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+        }`;
+        notification.textContent = message;
+        
+        // Добавляем на страницу
+        document.body.appendChild(notification);
+        
+        // Показываем с анимацией
+        setTimeout(() => {
+            notification.classList.remove('translate-x-full');
+            notification.classList.add('translate-x-0');
+        }, 10);
+        
+        // Удаляем через 3 секунды
+        setTimeout(() => {
+            notification.classList.remove('translate-x-0');
+            notification.classList.add('translate-x-full');
+            
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 300);
+        }, 3000);
+    }
+    
+    // =============== ДЛЯ ОТЛАДКИ ===============
+    // Выводим данные маршрута в консоль
+    console.log('📊 Данные маршрута:', {
+        title: '{{ $route->title }}',
+        start_coordinates: '{!! $route->start_coordinates !!}',
+        end_coordinates: '{!! $route->end_coordinates !!}',
+        path_coordinates: '{!! $route->path_coordinates !!}',
+        points_count: {{ $route->points ? $route->points->count() : 0 }}
+    });
 });
+
+// Экспортируем функции для глобального использования
+window.initializeMap = initializeMap;
+window.reloadMap = reloadMap;
+window.openImageModal = openImageModal;
 </script>
 @endpush
